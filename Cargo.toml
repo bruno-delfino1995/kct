@@ -1,0 +1,14 @@
+[package]
+name = "kct"
+version = "0.1.0"
+edition = "2018"
+authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
+description = "Kubernetes Configuration Tool"
+repository = "https://github.com/bruno-delfino1995/kct"
+license = "MIT"
+keywords = ["kubernetes", "jsonnet"]
+categories = ["command-line-utilities"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
