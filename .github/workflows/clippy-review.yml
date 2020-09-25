@@ -20,12 +20,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-on: [push, pull_request]
+on: [pull_request]
 
-name: Clippy check
+name: Clippy Review
 
 jobs:
-  clippy_check:
+  review:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
