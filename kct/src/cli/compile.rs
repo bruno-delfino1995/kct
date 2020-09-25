@@ -34,7 +34,10 @@ pub fn run(matches: &ArgMatches) -> Result<String, String> {
 
 	let rendered = compiler::render(&package, values).map_err(|err| err.to_string())?;
 
-	Ok(rendered.to_string())
+	let objects = kube::find(&rendered).map_err(|err| err.to_string())?;
+	let to_apply = kube::glue(&objects);
+
+	Ok(to_apply.to_string())
 }
 
 fn parse_values(path: &Option<PathBuf>) -> Result<Option<Value>, String> {
