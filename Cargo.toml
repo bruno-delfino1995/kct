@@ -3,5 +3,6 @@
 members = [
 	"compiler",
 	"helper",
-	"kct"
+	"kct",
+	"kube"
 ]
