@@ -1,5 +1,6 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
+use compiler::Package;
 use helper::io;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -22,16 +23,18 @@ pub fn command() -> App<'static, 'static> {
 		)
 }
 
+// TODO: Can't we use Box<dyn Display> for error since all our errors implement
+// Display?
 pub fn run(matches: &ArgMatches) -> Result<String, String> {
 	let values_from: Option<PathBuf> = matches.value_of("values").map(PathBuf::from);
 	let values = parse_values(&values_from)?;
 
 	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
+	let package = Package::from_path(package_from).map_err(|err| err.to_string())?;
 
-	Ok(format!(
-		"Render KCP at {:?} with {:?}",
-		package_from, values
-	))
+	let rendered = compiler::render(&package, values).map_err(|err| err.to_string())?;
+
+	Ok(rendered.to_string())
 }
 
 fn parse_values(path: &Option<PathBuf>) -> Result<Option<Value>, String> {
