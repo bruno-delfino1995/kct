@@ -20,9 +20,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-on: [push]
+on:
+  push:
+    tags:
+      - v*
 
-name: Code Quality
+name: Release
 
 jobs:
   test:
@@ -30,41 +33,67 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: nightly
           override: true
-
-      - name: Run cargo test
+      - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all
 
-  style:
-    runs-on: ubuntu-latest
+  github-release:
+    needs: [test]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            rust: nightly
+            target: x86_64-unknown-linux-musl
+            bin: kct
+            name: kct-linux-amd64
+          - os: windows-latest
+            rust: nightly
+            target: x86_64-pc-windows-msvc
+            bin: kct.exe
+            name: kct-windows-amd64.exe
+          - os: macOS-latest
+            rust: nightly
+            target: x86_64-apple-darwin
+            bin: kct
+            name: kct-darwin-amd64
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
-          toolchain: nightly
+          toolchain: ${{ matrix.rust }}
           override: true
-          components: rustfmt, clippy
-
-      - name: Run cargo fmt
+          target: ${{ matrix.target }}
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Run build
         uses: actions-rs/cargo@v1
         with:
-          command: fmt
-          args: --all -- --check
+          command: build
+          args: --bin=kct --release --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.bin }}
+          cd target/${{ matrix.target }}/release
 
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
+          cp ${{ matrix.bin }} ../../../${{ matrix.name }}
+          cd -
+      - name: Generate SHA-256
+        run: shasum -a 256 ${{ matrix.name }} > ${{ matrix.name }}.sha256
+      - name: Publish
+        uses: softprops/action-gh-release@v1
         with:
-          command: clippy
-          args: -- -D warnings
+          draft: true
+          files: "kct*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
