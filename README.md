@@ -12,10 +12,9 @@ By combining the value injection from Helm with the Jsonnet template engine from
 
 ## Installation
 
-There are many ways you can install our tool:
+There are two ways you can install our tool:
 
 - From the binary releases that can be found on the [Releases Page](https://github.com/bruno-delfino1995/kct/releases) and adding the bin to your `$PATH`
-- By using the Rust Crate installed with `cargo install kct`
 - Through your prefered package manager for your distro:
   - Arch user with `yay -S kct`
 
