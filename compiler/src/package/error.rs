@@ -2,6 +2,7 @@ use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
+	InvalidFormat,
 	NoSpec,
 	InvalidSpec,
 	// TODO: NoSchema bypass the return of an Option in
@@ -15,6 +16,7 @@ impl fmt::Display for Error {
 		use Error::*;
 
 		match self {
+			InvalidFormat => write!(f, "Package is neither directory nor a .tgz"),
 			NoSpec => write!(f, "Missing package file"),
 			InvalidSpec => write!(f, "Invalid package file"),
 			NoSchema => write!(f, "No schema file to validate your values"),
