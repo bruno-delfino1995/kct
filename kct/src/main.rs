@@ -8,12 +8,7 @@ use std::process;
 fn main() {
 	let matches = cli::create().get_matches();
 
-	let result = match matches.subcommand() {
-		("compile", Some(matches)) => cli::compile::run(matches),
-		_ => exit("Unknown arguments combination"),
-	};
-
-	let result: String = result.unwrap_or_else(exit);
+	let result = cli::run(matches.subcommand()).unwrap_or_else(exit);
 
 	println!("{}", result);
 }
