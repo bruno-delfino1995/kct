@@ -287,10 +287,12 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "compiler",
+ "flate2",
  "helper",
  "kube",
  "serde",
  "serde_json",
+ "tar",
 ]
 
 [[package]]
