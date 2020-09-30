@@ -11,7 +11,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 clap = "2.33.3"
-compiler = { path = "../compiler" }
+package = { path = "../package" }
 flate2 = "1.0.17"
 helper = { path = "../helper" }
 kube = { path = "../kube" }

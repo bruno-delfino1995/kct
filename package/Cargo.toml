@@ -1,5 +1,5 @@
 [package]
-name = "compiler"
+name = "package"
 version = "0.1.0"
 authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
 edition = "2018"
