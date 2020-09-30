@@ -1,0 +1,11 @@
+{
+	"$schema": "http://json-schema.org/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["secret"],
+	"properties": {
+		"secret": {
+			"type": "string"
+		}
+	}
+}
