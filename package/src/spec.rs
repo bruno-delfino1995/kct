@@ -3,7 +3,7 @@ use helper::io::{self, Error as IOError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Spec {
 	pub name: String,
 	pub main: PathBuf,

@@ -1,7 +1,5 @@
-pub mod error;
-
-use self::error::{Error, Result};
-use crate::package::Package;
+use crate::error::{Error, Result};
+use crate::Package;
 use jrsonnet_evaluator::{
 	error::LocError,
 	trace::{ExplainingFormat, PathResolver},
@@ -11,9 +9,9 @@ use serde_json::Value;
 
 const VALUES_PARAM: &str = "values";
 
-pub fn render(pkg: &Package, values: Option<Value>) -> Result<Value> {
-	let values = validate_values(pkg, values)?;
-	let state = create_state(pkg);
+pub fn compile(pkg: Package, values: Option<Value>) -> Result<Value> {
+	let values = validate_values(&pkg, values)?;
+	let state = create_state(&pkg);
 
 	let render_issue = |err: LocError| Error::RenderIssue(format!("{}", err.error()));
 

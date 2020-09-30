@@ -117,21 +117,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6173fd61b610d15a7566dd7b7620775627441c4ab9dac8906e17cb93a24b782"
 
 [[package]]
-name = "compiler"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "helper",
- "jrsonnet-evaluator",
- "serde",
- "serde_json",
- "tar",
- "tempfile",
- "url",
- "valico",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -286,10 +271,10 @@ name = "kct"
 version = "0.1.0"
 dependencies = [
  "clap",
- "compiler",
  "flate2",
  "helper",
  "kube",
+ "package",
  "serde",
  "serde_json",
  "tar",
@@ -361,6 +346,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "package"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "helper",
+ "jrsonnet-evaluator",
+ "serde",
+ "serde_json",
+ "tar",
+ "tempfile",
+ "url",
+ "valico",
 ]
 
 [[package]]

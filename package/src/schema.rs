@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use url::Url;
 use valico::json_schema::Scope;
 
+#[derive(Debug)]
 pub struct Schema {
 	scope: Scope,
 	id: Url,

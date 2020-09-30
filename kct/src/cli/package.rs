@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
-use compiler::Package;
+use package::Package;
 use std::path::PathBuf;
 
 pub fn command() -> App<'static, 'static> {
@@ -21,7 +21,7 @@ pub fn run(matches: &ArgMatches) -> Result<String, String> {
 	let package = Package::from_path(package_from).map_err(|err| err.to_string())?;
 
 	let cwd = std::env::current_dir().map_err(|err| err.to_string())?;
-	let compressed_path = package.compress(&cwd)?;
+	let compressed_path = package.archive(&cwd)?;
 
 	Ok(format!(
 		"Successfully packaged KCP and saved it to: {}",

@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
-use compiler::Package;
 use helper::io;
+use package::Package;
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -32,7 +32,7 @@ pub fn run(matches: &ArgMatches) -> Result<String, String> {
 	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
 	let package = Package::from_path(package_from).map_err(|err| err.to_string())?;
 
-	let rendered = compiler::render(&package, values).map_err(|err| err.to_string())?;
+	let rendered = package.compile(values).map_err(|err| err.to_string())?;
 
 	let objects = kube::find(&rendered).map_err(|err| err.to_string())?;
 	let to_apply = kube::glue(&objects);
