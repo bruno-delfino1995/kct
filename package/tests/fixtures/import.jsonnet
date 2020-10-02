@@ -1,5 +1,5 @@
 local valid = import 'valid.jsonnet';
 
-function(values) {
+function(values, files) {
 	imported: valid(values),
 }
