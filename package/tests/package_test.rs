@@ -2,7 +2,7 @@ mod fixtures;
 
 use fixtures::Fixture;
 use package::{error::Error, Package};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -167,5 +167,119 @@ mod compile {
 		let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values.unwrap());
 		let result: Value = serde_json::from_str(&json).unwrap();
 		assert_eq!(rendered.unwrap(), result);
+	}
+
+	#[test]
+	fn renders_templates() {
+		let package = Fixture::package(
+			&["with-template.jsonnet", "files/database.toml"],
+			Some("values.schema.json"),
+		);
+		let values = Some(Fixture::values("values.json"));
+		let template = Fixture::template("database.toml", values.clone().unwrap());
+
+		let rendered = package.compile(values.clone());
+
+		let expected = {
+			let mut map = Map::<String, Value>::new();
+			map.insert(String::from("values"), values.unwrap());
+			map.insert(String::from("settings"), Value::String(template));
+			Value::Object(map)
+		};
+
+		assert_eq!(rendered.unwrap(), expected);
+	}
+
+	#[test]
+	fn renders_multiple_templates() {
+		let package = Fixture::package(
+			&[
+				"with-multiple-templates.jsonnet",
+				"files/database.toml",
+				"files/events/settings.toml",
+			],
+			Some("values.schema.json"),
+		);
+		let values = Some(Fixture::values("values.json"));
+		let db_template = Fixture::template("database.toml", values.clone().unwrap());
+		let evt_template = Fixture::template("events/settings.toml", values.clone().unwrap());
+
+		let rendered = package.compile(values.clone());
+
+		let expected = {
+			let mut map = Map::<String, Value>::new();
+			map.insert(String::from("values"), values.unwrap());
+			map.insert(
+				String::from("settings"),
+				Value::Array(vec![
+					Value::String(db_template),
+					Value::String(evt_template),
+				]),
+			);
+
+			Value::Object(map)
+		};
+
+		assert_eq!(rendered.unwrap(), expected);
+	}
+
+	#[test]
+	#[should_panic(expected = "Unable to compile templates")]
+	fn fails_on_invalid_templates() {
+		let package = Fixture::package(
+			&["with-invalid-template.jsonnet", "files/invalid.ini"],
+			Some("values.schema.json"),
+		);
+		let values = Some(Fixture::values("values.json"));
+
+		let rendered = package.compile(values).unwrap_err();
+
+		match rendered {
+			Error::RenderIssue(err) => panic!(err),
+			_ => panic!("It should be a render issue!"),
+		}
+	}
+
+	#[test]
+	fn compiles_templates_with_empty_values() {
+		let package = Fixture::package(&["plain-template.jsonnet", "files/no-params.txt"], None);
+		let template = Fixture::template("no-params.txt", Value::Object(Map::new()));
+
+		let rendered = package.compile(None);
+
+		let expected = {
+			let mut map = Map::<String, Value>::new();
+			map.insert(String::from("settings"), Value::String(template));
+
+			Value::Object(map)
+		};
+
+		assert_eq!(rendered.unwrap(), expected);
+	}
+
+	#[test]
+	#[should_panic(expected = "No files folder to search for templates")]
+	fn fails_on_empty_templates_folder() {
+		let package = Fixture::package(&["plain-template.jsonnet"], None);
+
+		let rendered = package.compile(None).unwrap_err();
+
+		match rendered {
+			Error::RenderIssue(err) => panic!(err),
+			_ => panic!("It should be a render issue!"),
+		}
+	}
+
+	#[test]
+	#[should_panic(expected = "No template found for glob")]
+	fn fails_on_not_found_template() {
+		let package = Fixture::package(&["plain-template.jsonnet", "files/database.toml"], None);
+
+		let rendered = package.compile(None).unwrap_err();
+
+		match rendered {
+			Error::RenderIssue(err) => panic!(err),
+			_ => panic!("It should be a render issue!"),
+		}
 	}
 }

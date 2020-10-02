@@ -69,6 +69,23 @@ impl Package {
 	}
 
 	pub fn compile(self, values: Option<Value>) -> Result<Value> {
+		let values = validate_values(&self, values)?;
+
 		compile::compile(self, values)
+	}
+}
+
+fn validate_values(pkg: &Package, values: Option<Value>) -> Result<Value> {
+	let (schema, values) = match (&pkg.schema, values) {
+		(None, None) => return Ok(Value::Null),
+		(None, Some(_)) => return Err(Error::NoSchema),
+		(Some(_), None) => return Err(Error::NoValues),
+		(Some(schema), Some(value)) => (schema, value),
+	};
+
+	if schema.validate(&values) {
+		Ok(values)
+	} else {
+		Err(Error::InvalidValues)
 	}
 }
