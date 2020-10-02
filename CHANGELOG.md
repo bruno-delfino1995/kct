@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
 - compile KCPs from `.tgz` archives with files at root
 - `package` command to create `.tgz` archives for valid KCPs
+- inject TLA function for compiling files with Jinja like engine
 
 ## [0.1.0] - 2020-09-29
 
