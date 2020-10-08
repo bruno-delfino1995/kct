@@ -1,6 +1,7 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
 use helper::io;
+use kube::Filter;
 use package::{Package, Release};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -27,6 +28,18 @@ pub fn command() -> App<'static, 'static> {
 				.help("Scope your package within a release")
 				.takes_value(true),
 		)
+		.arg(
+			Arg::with_name("only")
+				.long("only")
+				.help("List of comma separated paths to compile")
+				.takes_value(true),
+		)
+		.arg(
+			Arg::with_name("except")
+				.long("except")
+				.help("List of comma separated path to not compile")
+				.takes_value(true),
+		)
 }
 
 // TODO: Can't we use Box<dyn Display> for error since all our errors implement
@@ -42,11 +55,15 @@ pub fn run(matches: &ArgMatches) -> Result<String, String> {
 		name: String::from(name),
 	});
 
+	let only: Vec<PathBuf> = matches.value_of("only").map(as_paths).unwrap_or_default();
+	let except: Vec<PathBuf> = matches.value_of("except").map(as_paths).unwrap_or_default();
+	let filter = Filter { only, except };
+
 	let rendered = package
 		.compile(values, release)
 		.map_err(|err| err.to_string())?;
 
-	let objects = kube::find(&rendered).map_err(|err| err.to_string())?;
+	let objects = kube::find(&rendered, &filter).map_err(|err| err.to_string())?;
 	let to_apply = kube::glue(&objects);
 
 	Ok(to_apply.to_string())
@@ -69,4 +86,22 @@ fn parse_values(path: &Option<PathBuf>) -> Result<Option<Value>, String> {
 			Ok(Some(parsed))
 		}
 	}
+}
+
+fn as_paths(paths: &str) -> Vec<PathBuf> {
+	paths
+		.trim()
+		.split(',')
+		.map(|path| path.trim())
+		.filter(|str| !str.is_empty())
+		.map(|path| path.split('.'))
+		.map(|path| {
+			let mut base = PathBuf::from("/");
+			for part in path {
+				base.push(part);
+			}
+
+			base
+		})
+		.collect()
 }

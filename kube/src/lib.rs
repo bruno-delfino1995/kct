@@ -1,5 +1,6 @@
 use serde_json::{Map, Value};
 use std::fmt;
+use std::path::PathBuf;
 use valico::json_schema::Scope;
 
 #[derive(PartialEq, Debug)]
@@ -19,27 +20,59 @@ impl fmt::Display for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub fn find(json: &Value) -> Result<Vec<Value>> {
-	if is_object(json) {
-		return Ok(vec![json.to_owned()]);
-	}
+#[derive(Default)]
+pub struct Filter {
+	pub only: Vec<PathBuf>,
+	pub except: Vec<PathBuf>,
+}
 
+impl Filter {
+	fn pass(&self, path: &PathBuf) -> bool {
+		let allow = self.only.iter().any(|allow| path.starts_with(allow));
+
+		let disallow = self
+			.except
+			.iter()
+			.any(|disallow| path.starts_with(disallow));
+
+		(allow || self.only.is_empty()) && !disallow
+	}
+}
+
+pub fn find(json: &Value, filter: &Filter) -> Result<Vec<Value>> {
 	let mut objects = vec![];
-	match json {
-		Value::Object(map) => {
-			for (_, val) in map.iter() {
-				if is_object(&val) {
-					objects.push(val.to_owned());
-				} else {
-					let found = find(&val)?;
-					objects.extend_from_slice(&found);
-				}
-			}
+	let mut walker: Vec<Box<dyn Iterator<Item = (PathBuf, &Value)>>> =
+		vec![Box::new(vec![(PathBuf::from("/"), json)].into_iter())];
 
-			Ok(objects)
+	while let Some(curr) = walker.last_mut() {
+		let (base, json) = match curr.next() {
+			Some(val) => val,
+			None => {
+				walker.pop();
+				continue;
+			}
+		};
+
+		if is_object(json) {
+			if filter.pass(&base) {
+				objects.push(json.to_owned());
+			}
+		} else {
+			match json {
+				Value::Object(map) => {
+					walker.push(Box::new(map.into_iter().map(move |(k, v)| {
+						let mut path = base.clone();
+						path.push(k);
+
+						(path, v)
+					})));
+				}
+				_ => return Err(Error::Invalid),
+			}
 		}
-		_ => Err(Error::Invalid),
 	}
+
+	Ok(objects)
 }
 
 pub fn glue(obj: &[Value]) -> Value {
