@@ -6,10 +6,11 @@ use jrsonnet_evaluator::{
 	error::LocError,
 	native::NativeCallback,
 	trace::{ExplainingFormat, PathResolver},
-	EvaluationState, FileImportResolver, FuncVal, Val,
+	EvaluationState, FileImportResolver, FuncVal, LazyBinding, LazyVal, ObjMember, ObjValue, Val,
 };
-use jrsonnet_parser::{Param, ParamsDesc};
+use jrsonnet_parser::{Param, ParamsDesc, Visibility};
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -24,24 +25,16 @@ pub fn compile(pkg: Package, values: Value) -> Result<Value> {
 
 	let render_issue = |err: LocError| Error::RenderIssue(format!("{}", err.error()));
 
-	state.add_tla(FILES_PARAM.into(), create_files_func(&pkg, &values));
-
 	state
-		.add_tla_code(VALUES_PARAM.into(), values.to_string().into())
-		.map_err(render_issue)?;
+		.settings_mut()
+		.globals
+		.insert("_".into(), create_global(&pkg, &values));
 
 	let parsed = state
 		.evaluate_file_raw(&pkg.spec.main)
 		.map_err(render_issue)?;
 
-	let parsed = match parsed {
-		Val::Func(_) => parsed,
-		_ => return Err(Error::RenderIssue(String::from("Template is not a TLA"))),
-	};
-
-	let wrapped = state.with_tla(parsed).map_err(render_issue)?;
-
-	let rendered = state.manifest(wrapped).map_err(render_issue)?.to_string();
+	let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
 
 	let json = serde_json::from_str(&rendered).map_err(|_err| Error::InvalidOutput)?;
 
@@ -60,6 +53,30 @@ fn create_state(pkg: &Package) -> EvaluationState {
 	}));
 
 	state
+}
+
+fn create_global(pkg: &Package, values: &Value) -> Val {
+	const FIELDS_AMOUNT: u8 = 3;
+	let mut entries = HashMap::with_capacity(FIELDS_AMOUNT as usize);
+	let register = |entries: &mut HashMap<Rc<str>, ObjMember>, name: &str, val: Val| {
+		entries.insert(
+			name.into(),
+			ObjMember {
+				add: false,
+				visibility: Visibility::Normal,
+				invoke: LazyBinding::Bound(LazyVal::new_resolved(val)),
+				location: None,
+			},
+		);
+	};
+
+	let files = create_files_func(&pkg, values);
+	let values = Val::from(values);
+
+	register(&mut entries, FILES_PARAM, files);
+	register(&mut entries, VALUES_PARAM, values);
+
+	Val::Obj(ObjValue::new(None, Rc::new(entries)))
 }
 
 fn create_files_func(pkg: &Package, values: &Value) -> Val {

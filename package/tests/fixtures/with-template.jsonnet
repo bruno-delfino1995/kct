@@ -1,4 +1,4 @@
-function(values, files) {
-	values: values,
-	settings: files("database.toml"),
+{
+	values: _.values,
+	settings: _.files("database.toml"),
 }

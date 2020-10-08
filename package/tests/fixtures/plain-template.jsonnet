@@ -1,3 +1,3 @@
-function(values, files) {
-	settings: files("no-params.txt"),
+{
+	settings: _.files("no-params.txt"),
 }
