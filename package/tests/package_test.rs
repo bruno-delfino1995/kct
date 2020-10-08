@@ -131,25 +131,14 @@ mod compile {
 	}
 
 	#[test]
-	fn expects_tla() {
-		let package = Fixture::package(&["plain.jsonnet"], None);
+	#[should_panic(expected = "manifest function")]
+	fn disallows_top_level_functions() {
+		let package = Fixture::package(&["function.jsonnet"], None);
 
 		let rendered = package.compile(None).unwrap_err();
 
 		match rendered {
-			Error::RenderIssue(_) => (),
-			_ => panic!("It should be a render issue!"),
-		}
-	}
-
-	#[test]
-	fn expects_tla_with_values_param() {
-		let package = Fixture::package(&["no-param.jsonnet"], None);
-
-		let rendered = package.compile(None).unwrap_err();
-
-		match rendered {
-			Error::RenderIssue(_) => (),
+			Error::RenderIssue(err) => panic!(err),
 			_ => panic!("It should be a render issue!"),
 		}
 	}
