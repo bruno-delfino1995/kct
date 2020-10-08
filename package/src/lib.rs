@@ -10,6 +10,7 @@ mod compile;
 use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
+pub use compile::Release;
 use serde_json::Value;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -68,10 +69,10 @@ impl Package {
 		archive::archive(&self.spec.name, &self.root, dest)
 	}
 
-	pub fn compile(self, values: Option<Value>) -> Result<Value> {
+	pub fn compile(self, values: Option<Value>, release: Option<Release>) -> Result<Value> {
 		let values = validate_values(&self, values)?;
 
-		compile::compile(self, values)
+		compile::compile(self, values, release)
 	}
 }
 

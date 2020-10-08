@@ -16,19 +16,26 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use tera::{Context, Tera};
 
-const VALUES_PARAM: &str = "values";
 const FILES_PARAM: &str = "files";
+const PACKAGE_PARAM: &str = "package";
+const RELEASE_PARAM: &str = "release";
+const VALUES_PARAM: &str = "values";
 const TEMPLATES_FOLDER: &str = "files";
+const GLOBAL_VARIABLE: &str = "_";
 
-pub fn compile(pkg: Package, values: Value) -> Result<Value> {
+pub struct Release {
+	pub name: String,
+}
+
+pub fn compile(pkg: Package, values: Value, release: Option<Release>) -> Result<Value> {
 	let state = create_state(&pkg);
 
 	let render_issue = |err: LocError| Error::RenderIssue(format!("{}", err.error()));
 
-	state
-		.settings_mut()
-		.globals
-		.insert("_".into(), create_global(&pkg, &values));
+	state.settings_mut().globals.insert(
+		GLOBAL_VARIABLE.into(),
+		create_global(&pkg, &values, &release),
+	);
 
 	let parsed = state
 		.evaluate_file_raw(&pkg.spec.main)
@@ -55,26 +62,56 @@ fn create_state(pkg: &Package) -> EvaluationState {
 	state
 }
 
-fn create_global(pkg: &Package, values: &Value) -> Val {
-	const FIELDS_AMOUNT: u8 = 3;
-	let mut entries = HashMap::with_capacity(FIELDS_AMOUNT as usize);
-	let register = |entries: &mut HashMap<Rc<str>, ObjMember>, name: &str, val: Val| {
-		entries.insert(
-			name.into(),
-			ObjMember {
-				add: false,
-				visibility: Visibility::Normal,
-				invoke: LazyBinding::Bound(LazyVal::new_resolved(val)),
-				location: None,
-			},
-		);
-	};
-
+fn create_global(pkg: &Package, values: &Value, release: &Option<Release>) -> Val {
 	let files = create_files_func(&pkg, values);
 	let values = Val::from(values);
+	let package = {
+		let mut map = Map::<String, Value>::new();
+		map.insert(String::from("name"), Value::String(pkg.spec.name.clone()));
 
-	register(&mut entries, FILES_PARAM, files);
-	register(&mut entries, VALUES_PARAM, values);
+		let full_name = match release {
+			Some(release) => format!("{}-{}", release.name, pkg.spec.name),
+			None => pkg.spec.name.clone(),
+		};
+		map.insert(String::from("fullName"), Value::String(full_name));
+
+		let value = Value::Object(map);
+
+		Val::from(&value)
+	};
+	let release = match release {
+		None => Val::Null,
+		Some(release) => {
+			let mut map = Map::<String, Value>::new();
+			map.insert(String::from("name"), Value::String(release.name.clone()));
+
+			let value = Value::Object(map);
+
+			Val::from(&value)
+		}
+	};
+
+	let pairs = vec![
+		(FILES_PARAM, files),
+		(PACKAGE_PARAM, package),
+		(RELEASE_PARAM, release),
+		(VALUES_PARAM, values),
+	];
+
+	let entries: HashMap<Rc<str>, ObjMember> = pairs
+		.into_iter()
+		.map(|(k, v)| {
+			(
+				k.into(),
+				ObjMember {
+					add: false,
+					visibility: Visibility::Normal,
+					invoke: LazyBinding::Bound(LazyVal::new_resolved(v)),
+					location: None,
+				},
+			)
+		})
+		.collect();
 
 	Val::Obj(ObjValue::new(None, Rc::new(entries)))
 }
@@ -116,7 +153,7 @@ fn create_files_func(pkg: &Package, values: &Value) -> Val {
 	};
 
 	let func = NativeCallback::new(params, render);
-	let ext: Rc<FuncVal> = FuncVal::NativeExt("files".into(), func.into()).into();
+	let ext: Rc<FuncVal> = FuncVal::NativeExt(FILES_PARAM.into(), func.into()).into();
 
 	Val::Func(ext)
 }
