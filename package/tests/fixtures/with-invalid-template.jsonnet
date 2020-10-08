@@ -1,4 +1,4 @@
-function(values, files) {
-	values: values,
-	settings: files("invalid.ini"),
+{
+	values: _.values,
+	settings: _.files("invalid.ini"),
 }
