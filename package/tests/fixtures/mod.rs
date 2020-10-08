@@ -47,6 +47,9 @@ impl Fixture {
 		source
 	}
 
+	// FIXME: It's getting out of hand the amount of files and it
+	// hides/separates the expectation from the "source". Using a tuple with
+	// name and contents, instead of only filenames, might help solve this.
 	pub fn package(templates: &[&str], schema: Option<&str>) -> Package {
 		let brownfield = Self::dir(&templates);
 		let root = PathBuf::from(brownfield.path());
