@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - compile KCPs from `.tgz` archives with files at root
 - `package` command to create `.tgz` archives for valid KCPs
-- add `files` function to the global for compiling files with Jinja like engine
+- `files` function to the global for compiling files with Jinja like engine
+- `--only` and `--except` parameters on `compile` to control which objects should be yielded
 
 ### Changed
 
