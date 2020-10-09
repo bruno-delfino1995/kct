@@ -293,10 +293,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d63df3d41950fb462ed38308eea019113ad1508da725bbedcd0fa5a85ef5f7"
 
 [[package]]
-name = "helper"
-version = "0.1.0"
-
-[[package]]
 name = "hermit-abi"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -413,20 +409,42 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "flate2",
- "helper",
- "kube",
- "package",
+ "kct_helper",
+ "kct_kube",
+ "kct_package",
  "serde",
  "serde_json",
  "tar",
 ]
 
 [[package]]
-name = "kube"
+name = "kct_helper"
+version = "0.1.0"
+
+[[package]]
+name = "kct_kube"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "valico",
+]
+
+[[package]]
+name = "kct_package"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "globwalk",
+ "jrsonnet-evaluator",
+ "jrsonnet-parser",
+ "kct_helper",
+ "serde",
+ "serde_json",
+ "tar",
+ "tempfile",
+ "tera",
+ "url",
  "valico",
 ]
 
@@ -509,24 +527,6 @@ name = "opaque-debug"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
-
-[[package]]
-name = "package"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "globwalk",
- "helper",
- "jrsonnet-evaluator",
- "jrsonnet-parser",
- "serde",
- "serde_json",
- "tar",
- "tempfile",
- "tera",
- "url",
- "valico",
-]
 
 [[package]]
 name = "parse-zoneinfo"

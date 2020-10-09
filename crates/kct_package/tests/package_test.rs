@@ -1,7 +1,7 @@
 mod fixtures;
 
 use fixtures::Fixture;
-use package::{error::Error, Package, Release};
+use kct_package::{error::Error, Package, Release};
 use serde_json::{Map, Value};
 use std::path::PathBuf;
 use tempfile::TempDir;

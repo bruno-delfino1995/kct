@@ -1,10 +1,8 @@
 [package]
-name = "kube"
+name = "kct_helper"
 version = "0.1.0"
 authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 [dependencies]
-serde = "1.0.115"
-serde_json = "1.0"
-valico = "3.4.0"

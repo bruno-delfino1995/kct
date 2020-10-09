@@ -1,4 +1,4 @@
-use kube::{Error, Filter, Result};
+use kct_kube::{Error, Filter, Result};
 use serde_json::Value;
 use std::iter;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ type Return = Result<Vec<Value>>;
 
 fn find_from(text: &str) -> Return {
 	let val: Value = serde_json::from_str(text).unwrap();
-	kube::find(&val, &Filter::default())
+	kct_kube::find(&val, &Filter::default())
 }
 
 fn assert_invalid(err: Return) {
@@ -86,7 +86,7 @@ mod filter {
 
 	fn find_within_minimal(filter: &Filter) -> Return {
 		let val = serde_json::from_str(MINIMAL_OBJECT).unwrap();
-		kube::find(&val, &filter)
+		kct_kube::find(&val, &filter)
 	}
 
 	fn find_within_complex(filter: &Filter) -> Return {
@@ -96,7 +96,7 @@ mod filter {
 		))
 		.unwrap();
 
-		kube::find(&complex, filter)
+		kct_kube::find(&complex, filter)
 	}
 
 	#[test]

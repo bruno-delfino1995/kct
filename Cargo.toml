@@ -1,8 +1,8 @@
 [workspace]
 
 members = [
-	"package",
-	"helper",
-	"kct",
-	"kube"
+	"bin",
+	"crates/kct_helper",
+	"crates/kct_kube",
+	"crates/kct_package"
 ]

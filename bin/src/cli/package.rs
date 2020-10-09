@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
-use package::Package;
+use kct_package::Package;
 use std::path::PathBuf;
 
 pub fn command() -> App<'static, 'static> {
