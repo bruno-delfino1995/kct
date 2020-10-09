@@ -1,4 +1,4 @@
-use package::{schema::Schema, spec::Spec, Package};
+use kct_package::{schema::Schema, spec::Spec, Package};
 use serde_json::Value;
 use std::env;
 use std::fs;

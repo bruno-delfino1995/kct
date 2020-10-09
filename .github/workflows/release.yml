@@ -21,9 +21,8 @@
 # SOFTWARE.
 
 on:
-  push:
-    tags:
-      - v*
+  release:
+    types: [created]
 
 name: Release
 
@@ -46,50 +45,36 @@ jobs:
 
   github-release:
     needs: [test]
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macOS-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            rust: nightly
-            target: x86_64-unknown-linux-musl
-            bin: kct
-            name: kct-linux-amd64
-          - os: windows-latest
-            rust: nightly
-            target: x86_64-pc-windows-msvc
-            bin: kct.exe
-            name: kct-windows-amd64.exe
-          - os: macOS-latest
-            rust: nightly
-            target: x86_64-apple-darwin
-            bin: kct
-            name: kct-darwin-amd64
-    runs-on: ${{ matrix.os }}
+    env:
+      RUST: nightly
+      TARGET: x86_64-unknown-linux-musl
+      BIN: kct
+      NAME: kct-linux-amd64
+    runs-on: ubuntu-latest
     steps:
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUST }}
           override: true
-          target: ${{ matrix.target }}
+          target: ${{ env.TARGET }}
       - name: Checkout
         uses: actions/checkout@v2
       - name: Run build
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --bin=kct --release --target ${{ matrix.target }}
+          args: --bin=kct --release --target ${{ env.TARGET }}
       - name: Package
         shell: bash
         run: |
-          strip target/${{ matrix.target }}/release/${{ matrix.bin }}
-          cd target/${{ matrix.target }}/release
+          strip target/${{ env.TARGET }}/release/${{ env.BIN }}
+          cd target/${{ env.TARGET }}/release
 
-          cp ${{ matrix.bin }} ../../../${{ matrix.name }}
+          cp ${{ env.BIN }} ../../../${{ env.NAME }}
           cd -
       - name: Generate SHA-256
-        run: shasum -a 256 ${{ matrix.name }} > ${{ matrix.name }}.sha256
+        run: shasum -a 256 ${{ env.NAME }} > ${{ env.NAME }}.sha256
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
@@ -97,3 +82,32 @@ jobs:
           files: "kct*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  cargo-release:
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Run cargo login
+        uses: actions-rs/cargo@v1
+        with:
+          command: login
+          args: ${{ secrets.CARGO_TOKEN }}
+      - name: Publish crates
+        shell: bash
+        run: |
+          crates=('helper' 'kube' 'package')
+          for crate in ${crates[@]}; do
+            cargo publish --manifest-path="crates/kct_$crate/Cargo.toml"
+          done
+      - name: Publish binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: publish
+          args: --manifest-path=bin/Cargo.toml
