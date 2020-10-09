@@ -1,8 +1,8 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
-use helper::io;
-use kube::Filter;
-use package::{Package, Release};
+use kct_helper::io;
+use kct_kube::Filter;
+use kct_package::{Package, Release};
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -63,8 +63,8 @@ pub fn run(matches: &ArgMatches) -> Result<String, String> {
 		.compile(values, release)
 		.map_err(|err| err.to_string())?;
 
-	let objects = kube::find(&rendered, &filter).map_err(|err| err.to_string())?;
-	let to_apply = kube::glue(&objects);
+	let objects = kct_kube::find(&rendered, &filter).map_err(|err| err.to_string())?;
+	let to_apply = kct_kube::glue(&objects);
 
 	Ok(to_apply.to_string())
 }

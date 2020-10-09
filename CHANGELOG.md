@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - stop using TLAs and use `_` global with the previous TLAs as properties
+- rename crates to `kct_$crate` to enable publishing on [crates.io][https://crates.io]
 
 ## [0.1.0] - 2020-09-29
 
