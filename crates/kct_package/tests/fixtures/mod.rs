@@ -74,6 +74,7 @@ impl Fixture {
 			root,
 			spec,
 			schema,
+			values: None,
 			brownfield: Some(brownfield),
 		}
 	}
