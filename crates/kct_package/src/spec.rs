@@ -1,5 +1,5 @@
 use super::{Error, Result};
-use kct_helper::io::{self, Error as IOError};
+use kct_helper::io;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -18,7 +18,6 @@ impl Spec {
 
 				Ok(spec)
 			}
-			Err(IOError::NotFound) => Err(Error::NoSpec),
 			_ => Err(Error::InvalidSpec),
 		}
 	}

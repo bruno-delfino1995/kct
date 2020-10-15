@@ -1,5 +1,3 @@
-#![feature(move_ref_pattern)]
-
 pub mod error;
 pub mod schema;
 pub mod spec;
@@ -11,18 +9,21 @@ use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
 pub use compile::Release;
+use kct_helper::{io, json};
 use serde_json::Value;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
 const SCHEMA_FILE: &str = "values.schema.json";
 const SPEC_FILE: &str = "kcp.json";
+const VALUES_FILE: &str = "values.json";
 
 #[derive(Debug)]
 pub struct Package {
 	pub root: PathBuf,
 	pub spec: Spec,
 	pub schema: Option<Schema>,
+	pub values: Option<Value>,
 	pub brownfield: Option<TempDir>,
 }
 
@@ -42,22 +43,47 @@ impl Package {
 			}
 		};
 
-		let mut spec = root.clone();
-		spec.push(SPEC_FILE);
-		let spec = Spec::from_path(spec)?;
+		let spec = {
+			let mut path = root.clone();
+			path.push(SPEC_FILE);
 
-		let mut schema = root.clone();
-		schema.push(SCHEMA_FILE);
-		let schema = match Schema::from_path(schema) {
-			Ok(schema) => Some(schema),
-			Err(Error::NoSchema) => None,
-			Err(err) => return Err(err),
+			if path.exists() {
+				Spec::from_path(path)?
+			} else {
+				return Err(Error::NoSpec);
+			}
 		};
+
+		let schema = {
+			let mut path = root.clone();
+			path.push(SCHEMA_FILE);
+
+			if path.exists() {
+				Some(Schema::from_path(path)?)
+			} else {
+				None
+			}
+		};
+
+		let values = {
+			let mut path = root.clone();
+			path.push(VALUES_FILE);
+
+			if path.exists() {
+				let contents = io::from_file(&path).map_err(|_err| Error::InvalidValues)?;
+				Some(serde_json::from_str(&contents).map_err(|_err| Error::InvalidValues)?)
+			} else {
+				None
+			}
+		};
+
+		validate_values(&schema, &values)?;
 
 		Ok(Package {
 			root,
 			spec,
 			schema,
+			values,
 			brownfield,
 		})
 	}
@@ -70,23 +96,36 @@ impl Package {
 	}
 
 	pub fn compile(self, values: Option<Value>, release: Option<Release>) -> Result<Value> {
-		let values = validate_values(&self, values)?;
+		let values = match (&self.values, &values) {
+			(Some(defaults), Some(values)) => {
+				let mut merged = defaults.to_owned();
+				json::merge(&mut merged, values);
 
-		compile::compile(self, values, release)
+				Some(merged)
+			}
+			(None, Some(values)) => Some(values.to_owned()),
+			(Some(defaults), None) => Some(defaults.to_owned()),
+			_ => None,
+		};
+
+		validate_values(&self.schema, &values)?;
+
+		compile::compile(self, values.unwrap_or(Value::Null), release)
 	}
 }
 
-fn validate_values(pkg: &Package, values: Option<Value>) -> Result<Value> {
-	let (schema, values) = match (&pkg.schema, values) {
-		(None, None) => return Ok(Value::Null),
+fn validate_values(schema: &Option<Schema>, values: &Option<Value>) -> Result<()> {
+	let (schema, values) = match (&schema, &values) {
+		(None, None) => return Ok(()),
 		(None, Some(_)) => return Err(Error::NoSchema),
 		(Some(_), None) => return Err(Error::NoValues),
 		(Some(schema), Some(value)) => (schema, value),
 	};
 
-	if schema.validate(&values) {
-		Ok(values)
+	if values.is_object() && schema.validate(&values) {
+		Ok(())
 	} else {
+		println!("Values = {}", values);
 		Err(Error::InvalidValues)
 	}
 }
