@@ -1,5 +1,5 @@
 use super::{Error, Result};
-use kct_helper::io::{self, Error as IOError};
+use kct_helper::io;
 use serde_json::Value;
 use std::path::PathBuf;
 use url::Url;
@@ -32,7 +32,6 @@ impl Schema {
 
 				Ok(schema)
 			}
-			Err(IOError::NotFound) => Err(Error::NoSchema),
 			_ => Err(Error::InvalidSchema),
 		}
 	}

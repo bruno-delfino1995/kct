@@ -1,13 +1,19 @@
 mod fixtures;
 
 use fixtures::Fixture;
+use kct_helper::json;
 use kct_package::{error::Error, Package, Release};
 use serde_json::{Map, Value};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn default_package() -> Package {
-	let dir = Fixture::dir(&["kcp.json", "values.schema.json", "valid.jsonnet"]);
+	let dir = Fixture::dir(&[
+		"kcp.json",
+		"values.schema.json",
+		"values.json",
+		"valid.jsonnet",
+	]);
 
 	// TODO: Find a way to drop from TempDir for cleanup after test is done
 	Package::from_path(dir.into_path()).unwrap()
@@ -23,7 +29,7 @@ mod from_path {
 
 	#[test]
 	fn need_spec() {
-		let dir = Fixture::dir(&["values.schema.json", "valid.jsonnet"]);
+		let dir = Fixture::dir(&["values.schema.json", "values.json", "valid.jsonnet"]);
 		let package = Package::from_path(PathBuf::from(dir.path()));
 
 		assert!(package.is_err());
@@ -33,7 +39,12 @@ mod from_path {
 	#[test]
 	fn from_archive() {
 		let cwd = TempDir::new().unwrap();
-		let dir = Fixture::dir(&["kcp.json", "values.schema.json", "valid.jsonnet"]);
+		let dir = Fixture::dir(&[
+			"kcp.json",
+			"values.schema.json",
+			"values.json",
+			"valid.jsonnet",
+		]);
 		let archive = Package::from_path(PathBuf::from(dir.path()))
 			.unwrap()
 			.archive(&PathBuf::from(cwd.path()))
@@ -42,6 +53,24 @@ mod from_path {
 		let package = Package::from_path(archive);
 
 		assert!(package.is_ok())
+	}
+
+	#[test]
+	fn requests_defaults_for_schema() {
+		let dir = Fixture::dir(&["values.schema.json", "valid.jsonnet", "kcp.json"]);
+		let package = Package::from_path(PathBuf::from(dir.path()));
+
+		assert!(package.is_err());
+		assert_eq!(package.unwrap_err(), Error::NoValues)
+	}
+
+	#[test]
+	fn request_schema_for_defaults() {
+		let dir = Fixture::dir(&["values.json", "valid.jsonnet", "kcp.json"]);
+		let package = Package::from_path(PathBuf::from(dir.path()));
+
+		assert!(package.is_err());
+		assert_eq!(package.unwrap_err(), Error::NoSchema)
 	}
 }
 
@@ -91,27 +120,6 @@ mod archive {
 mod compile {
 	use super::*;
 
-	mod preconditions {
-		use super::*;
-
-		#[test]
-		fn requests_values() {
-			let package = Fixture::package(&["valid.jsonnet"], Some("values.schema.json"));
-
-			let rendered = package.compile(None, None);
-			assert_eq!(rendered.unwrap_err(), Error::NoValues);
-		}
-
-		#[test]
-		fn request_schema() {
-			let package = Fixture::package(&["valid.jsonnet"], None);
-			let values = Some(Fixture::values("values.json"));
-
-			let rendered = package.compile(values, None);
-			assert_eq!(rendered.unwrap_err(), Error::NoSchema);
-		}
-	}
-
 	mod values {
 		use super::*;
 
@@ -133,6 +141,35 @@ mod compile {
 			let rendered = package.compile(values.clone(), None);
 
 			let json = format!(r#"{{ "values": {0} }}"#, values.unwrap());
+			let result: Value = serde_json::from_str(&json).unwrap();
+			assert_eq!(rendered.unwrap(), result);
+		}
+
+		#[test]
+		fn merges_values_with_defaults() {
+			let defaults = Fixture::values("complex.json");
+			let values: Value = serde_json::from_str(
+				r#"{ "database": { "port": 5432, "credentials": { "user": "admin", "pass": "admin" } } }"#,
+			)
+			.unwrap();
+			let merged = {
+				let mut merged = defaults.clone();
+				json::merge(&mut merged, &values);
+				merged
+			};
+
+			let package = {
+				let package = Fixture::package(&["valid.jsonnet"], Some("complex.schema.json"));
+
+				Package {
+					values: Some(defaults),
+					..package
+				}
+			};
+
+			let rendered = package.compile(Some(values), None);
+
+			let json = format!(r#"{{ "values": {0} }}"#, merged);
 			let result: Value = serde_json::from_str(&json).unwrap();
 			assert_eq!(rendered.unwrap(), result);
 		}

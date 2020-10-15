@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `package` command to create `.tgz` archives for valid KCPs
 - `files` function to the global for compiling files with Jinja like engine
 - `--only` and `--except` parameters on `compile` to control which objects should be yielded
+- `values.json` file on the KCP structure for defaults
 
 ### Changed
 
