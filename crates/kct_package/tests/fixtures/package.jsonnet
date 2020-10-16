@@ -1,3 +1,0 @@
-{
-	package: _.package
-}

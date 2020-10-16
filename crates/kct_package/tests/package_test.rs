@@ -1,22 +1,45 @@
 mod fixtures;
+mod helpers;
 
 use fixtures::Fixture;
 use kct_helper::json;
 use kct_package::{error::Error, Package, Release};
 use serde_json::{Map, Value};
+use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-fn default_package() -> Package {
-	let dir = Fixture::dir(&[
-		"kcp.json",
-		"values.schema.json",
-		"values.json",
-		"valid.jsonnet",
-	]);
+fn package(with: Vec<(&str, &str)>, withouth: Vec<&str>) -> (Result<Package, Error>, TempDir) {
+	let dir = {
+		use fs_extra::dir::{self, CopyOptions};
 
-	// TODO: Find a way to drop from TempDir for cleanup after test is done
-	Package::from_path(dir.into_path()).unwrap()
+		let tempdir = TempDir::new().unwrap();
+		let source = Fixture::path("kcp");
+
+		let mut options = CopyOptions::new();
+		options.content_only = true;
+		dir::copy(source, tempdir.path(), &options).unwrap();
+
+		tempdir
+	};
+
+	for (path, contents) in with {
+		fs::write(dir.path().join(path), contents).unwrap();
+	}
+
+	for path in withouth {
+		let to_remove = dir.path().join(path);
+
+		if to_remove.is_dir() {
+			fs::remove_dir_all(to_remove).unwrap();
+		} else {
+			fs::remove_file(to_remove).unwrap();
+		}
+	}
+
+	let package = Package::from_path(PathBuf::from(dir.path()));
+
+	(package, dir)
 }
 
 mod from_path {
@@ -24,13 +47,14 @@ mod from_path {
 
 	#[test]
 	fn can_be_created() {
-		default_package();
+		let (package, _dir) = package(vec![], vec![]);
+
+		assert!(package.is_ok());
 	}
 
 	#[test]
 	fn need_spec() {
-		let dir = Fixture::dir(&["values.schema.json", "values.json", "valid.jsonnet"]);
-		let package = Package::from_path(PathBuf::from(dir.path()));
+		let (package, _dir) = package(vec![], vec!["kcp.json"]);
 
 		assert!(package.is_err());
 		assert_eq!(package.unwrap_err(), Error::NoSpec)
@@ -39,16 +63,9 @@ mod from_path {
 	#[test]
 	fn from_archive() {
 		let cwd = TempDir::new().unwrap();
-		let dir = Fixture::dir(&[
-			"kcp.json",
-			"values.schema.json",
-			"values.json",
-			"valid.jsonnet",
-		]);
-		let archive = Package::from_path(PathBuf::from(dir.path()))
-			.unwrap()
-			.archive(&PathBuf::from(cwd.path()))
-			.unwrap();
+		let (package, _dir) = package(vec![], vec![]);
+		let package = package.unwrap();
+		let archive = package.archive(&PathBuf::from(cwd.path())).unwrap();
 
 		let package = Package::from_path(archive);
 
@@ -56,18 +73,16 @@ mod from_path {
 	}
 
 	#[test]
-	fn requests_defaults_for_schema() {
-		let dir = Fixture::dir(&["values.schema.json", "valid.jsonnet", "kcp.json"]);
-		let package = Package::from_path(PathBuf::from(dir.path()));
+	fn requests_values_for_schema() {
+		let (package, _dir) = package(vec![], vec!["values.json"]);
 
 		assert!(package.is_err());
 		assert_eq!(package.unwrap_err(), Error::NoValues)
 	}
 
 	#[test]
-	fn request_schema_for_defaults() {
-		let dir = Fixture::dir(&["values.json", "valid.jsonnet", "kcp.json"]);
-		let package = Package::from_path(PathBuf::from(dir.path()));
+	fn request_schema_for_values() {
+		let (package, _dir) = package(vec![], vec!["values.schema.json"]);
 
 		assert!(package.is_err());
 		assert_eq!(package.unwrap_err(), Error::NoSchema)
@@ -80,7 +95,8 @@ mod archive {
 	#[test]
 	fn creates_a_file_on_provided_dir() {
 		let cwd = TempDir::new().unwrap();
-		let package = default_package();
+		let (package, _dir) = package(vec![], vec![]);
+		let package = package.unwrap();
 
 		let compressed = package.archive(&PathBuf::from(cwd.path()));
 
@@ -91,7 +107,8 @@ mod archive {
 	#[test]
 	fn creates_archive_with_spec_name() {
 		let cwd = TempDir::new().unwrap();
-		let package = default_package();
+		let (package, _dir) = package(vec![], vec![]);
+		let package = package.unwrap();
 		let name = package.spec.name.clone();
 
 		let compressed = package.archive(&PathBuf::from(cwd.path()));
@@ -106,12 +123,14 @@ mod archive {
 	#[test]
 	fn can_be_compiled_after_archived() {
 		let cwd = TempDir::new().unwrap();
-		let package = default_package();
-		let values = Some(Fixture::values("values.json"));
+		let (package, _dir) = package(vec![], vec![]);
+		let package = package.unwrap();
+
+		let values = helpers::values(&Fixture::contents("kcp/values.json"));
 
 		let compressed = package.archive(&PathBuf::from(cwd.path())).unwrap();
 		let package = Package::from_path(compressed).unwrap();
-		let compiled = package.compile(values, None);
+		let compiled = package.compile(Some(values), None);
 
 		assert!(compiled.is_ok());
 	}
@@ -125,52 +144,61 @@ mod compile {
 
 		#[test]
 		fn renders_with_null() {
-			let package = Fixture::package(&["valid.jsonnet"], None);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "{ values: _.values }")],
+				vec![],
+			);
+			let mut package = package.unwrap();
+			package.schema = None;
+			package.values = None;
+
 			let rendered = package.compile(None, None);
 
 			let json = r#"{ "values": null }"#;
-			let result: Value = serde_json::from_str(json).unwrap();
+			let result: Value = helpers::values(&json);
 			assert_eq!(rendered.unwrap(), result);
 		}
 
 		#[test]
 		fn renders_with_value() {
-			let package = Fixture::package(&["valid.jsonnet"], Some("values.schema.json"));
-			let values = Some(Fixture::values("values.json"));
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "{ values: _.values }")],
+				vec![],
+			);
+			let mut package = package.unwrap();
+			package.values = None;
 
-			let rendered = package.compile(values.clone(), None);
+			let values = helpers::values(&Fixture::contents("kcp/values.json"));
 
-			let json = format!(r#"{{ "values": {0} }}"#, values.unwrap());
-			let result: Value = serde_json::from_str(&json).unwrap();
+			let rendered = package.compile(Some(values.clone()), None);
+
+			let json = format!(r#"{{ "values": {0} }}"#, values);
+			let result: Value = helpers::values(&json);
 			assert_eq!(rendered.unwrap(), result);
 		}
 
 		#[test]
 		fn merges_values_with_defaults() {
-			let defaults = Fixture::values("complex.json");
-			let values: Value = serde_json::from_str(
+			let defaults = helpers::values(&Fixture::contents("kcp/values.json"));
+			let values: Value = helpers::values(
 				r#"{ "database": { "port": 5432, "credentials": { "user": "admin", "pass": "admin" } } }"#,
-			)
-			.unwrap();
+			);
 			let merged = {
-				let mut merged = defaults.clone();
+				let mut merged = defaults;
 				json::merge(&mut merged, &values);
 				merged
 			};
 
-			let package = {
-				let package = Fixture::package(&["valid.jsonnet"], Some("complex.schema.json"));
-
-				Package {
-					values: Some(defaults),
-					..package
-				}
-			};
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "{ values: _.values }")],
+				vec![],
+			);
+			let package = package.unwrap();
 
 			let rendered = package.compile(Some(values), None);
 
 			let json = format!(r#"{{ "values": {0} }}"#, merged);
-			let result: Value = serde_json::from_str(&json).unwrap();
+			let result = helpers::values(&json);
 			assert_eq!(rendered.unwrap(), result);
 		}
 	}
@@ -181,7 +209,14 @@ mod compile {
 		#[test]
 		#[should_panic(expected = "manifest function")]
 		fn disallows_top_level_functions() {
-			let package = Fixture::package(&["function.jsonnet"], None);
+			let (package, _dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"function(values = null, files = null) { values: values }",
+				)],
+				vec![],
+			);
+			let package = package.unwrap();
 
 			let rendered = package.compile(None, None).unwrap_err();
 
@@ -193,16 +228,23 @@ mod compile {
 
 		#[test]
 		fn renders_imports() {
-			let package = Fixture::package(
-				&["import.jsonnet", "valid.jsonnet"],
-				Some("values.schema.json"),
+			let (package, _dir) = package(
+				vec![
+					(
+						"templates/main.jsonnet",
+						"local valid = import './valid.jsonnet'; { imported: valid }",
+					),
+					("templates/valid.jsonnet", "{ values: _.values }"),
+				],
+				vec![],
 			);
-			let values = Some(Fixture::values("values.json"));
+			let package = package.unwrap();
+			let values = package.values.clone().unwrap();
 
-			let rendered = package.compile(values.clone(), None);
+			let rendered = package.compile(None, None);
 
-			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values.unwrap());
-			let result: Value = serde_json::from_str(&json).unwrap();
+			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values);
+			let result: Value = helpers::values(&json);
 			assert_eq!(rendered.unwrap(), result);
 		}
 	}
@@ -212,18 +254,22 @@ mod compile {
 
 		#[test]
 		fn renders_templates() {
-			let package = Fixture::package(
-				&["with-template.jsonnet", "files/database.toml"],
-				Some("values.schema.json"),
+			let (package, _dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"{ settings: _.files('database.toml') }",
+				)],
+				vec![],
 			);
-			let values = Some(Fixture::values("values.json"));
-			let template = Fixture::template("database.toml", values.clone().unwrap());
+			let package = package.unwrap();
+			let values = package.values.clone().unwrap();
 
-			let rendered = package.compile(values.clone(), None);
+			let template =
+				helpers::template(&Fixture::contents("kcp/files/database.toml"), &values);
+			let rendered = package.compile(None, None);
 
 			let expected = {
 				let mut map = Map::<String, Value>::new();
-				map.insert(String::from("values"), values.unwrap());
 				map.insert(String::from("settings"), Value::String(template));
 				Value::Object(map)
 			};
@@ -233,23 +279,27 @@ mod compile {
 
 		#[test]
 		fn renders_multiple_templates() {
-			let package = Fixture::package(
-				&[
-					"with-multiple-templates.jsonnet",
-					"files/database.toml",
-					"files/events/settings.toml",
-				],
-				Some("values.schema.json"),
+			let (package, _dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"{ settings: _.files('**/*.toml') }",
+				)],
+				vec![],
 			);
-			let values = Some(Fixture::values("values.json"));
-			let db_template = Fixture::template("database.toml", values.clone().unwrap());
-			let evt_template = Fixture::template("events/settings.toml", values.clone().unwrap());
+			let package = package.unwrap();
+			let values = package.values.clone().unwrap();
 
-			let rendered = package.compile(values.clone(), None);
+			let db_template =
+				helpers::template(&Fixture::contents("kcp/files/database.toml"), &values);
+			let evt_template = helpers::template(
+				&Fixture::contents("kcp/files/events/settings.toml"),
+				&values,
+			);
+
+			let rendered = package.compile(None, None);
 
 			let expected = {
 				let mut map = Map::<String, Value>::new();
-				map.insert(String::from("values"), values.unwrap());
 				map.insert(
 					String::from("settings"),
 					Value::Array(vec![
@@ -267,13 +317,16 @@ mod compile {
 		#[test]
 		#[should_panic(expected = "Unable to compile templates")]
 		fn fails_on_invalid_templates() {
-			let package = Fixture::package(
-				&["with-invalid-template.jsonnet", "files/invalid.ini"],
-				Some("values.schema.json"),
+			let (package, _dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"{ settings: _.files('invalid.ini') }",
+				)],
+				vec![],
 			);
-			let values = Some(Fixture::values("values.json"));
+			let package = package.unwrap();
 
-			let rendered = package.compile(values, None).unwrap_err();
+			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic!(err),
@@ -283,9 +336,19 @@ mod compile {
 
 		#[test]
 		fn compiles_templates_with_empty_values() {
-			let package =
-				Fixture::package(&["plain-template.jsonnet", "files/no-params.txt"], None);
-			let template = Fixture::template("no-params.txt", Value::Object(Map::new()));
+			let (package, _dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"{ settings: _.files('no-params.txt') }",
+				)],
+				vec!["values.json", "values.schema.json"],
+			);
+			let package = package.unwrap();
+
+			let template = helpers::template(
+				&Fixture::contents("kcp/files/no-params.txt"),
+				&Value::Object(Map::new()),
+			);
 
 			let rendered = package.compile(None, None);
 
@@ -302,7 +365,8 @@ mod compile {
 		#[test]
 		#[should_panic(expected = "No files folder to search for templates")]
 		fn fails_on_empty_templates_folder() {
-			let package = Fixture::package(&["plain-template.jsonnet"], None);
+			let (package, _dir) = package(vec![], vec!["files"]);
+			let package = package.unwrap();
 
 			let rendered = package.compile(None, None).unwrap_err();
 
@@ -315,8 +379,11 @@ mod compile {
 		#[test]
 		#[should_panic(expected = "No template found for glob")]
 		fn fails_on_not_found_template() {
-			let package =
-				Fixture::package(&["plain-template.jsonnet", "files/database.toml"], None);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "{ settings: _.files('*.json') }")],
+				vec![],
+			);
+			let package = package.unwrap();
 
 			let rendered = package.compile(None, None).unwrap_err();
 
@@ -333,7 +400,11 @@ mod compile {
 		#[test]
 		fn prefixes_package_name() {
 			let release_name = "rc";
-			let package = Fixture::package(&["package.jsonnet"], None);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "{ package: _.package }")],
+				vec![],
+			);
+			let package = package.unwrap();
 			let package_name = package.spec.name.clone();
 
 			let rendered = package.compile(
@@ -348,7 +419,7 @@ mod compile {
 				package_name,
 				format!("{}-{}", release_name, package_name)
 			);
-			let result: Value = serde_json::from_str(&json).unwrap();
+			let result = helpers::values(&json);
 
 			assert_eq!(rendered.unwrap(), result);
 		}
@@ -358,12 +429,16 @@ mod compile {
 			let release = Release {
 				name: String::from("rc"),
 			};
-			let package = Fixture::package(&["release.jsonnet"], None);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "{ release: _.release }")],
+				vec![],
+			);
+			let package = package.unwrap();
 
 			let json = format!(r#"{{ "release": {{ "name": "{0}" }} }}"#, release.name);
 			let rendered = package.compile(None, Some(release));
 
-			let result: Value = serde_json::from_str(&json).unwrap();
+			let result = helpers::values(&json);
 
 			assert_eq!(rendered.unwrap(), result);
 		}

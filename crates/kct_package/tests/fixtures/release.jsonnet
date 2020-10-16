@@ -1,3 +1,0 @@
-{
-	release: _.release
-}
