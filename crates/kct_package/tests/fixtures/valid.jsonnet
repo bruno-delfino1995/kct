@@ -1,3 +1,0 @@
-{
-	values: _.values,
-}
