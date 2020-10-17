@@ -60,14 +60,6 @@ mod from_path {
 	}
 
 	#[test]
-	fn need_spec() {
-		let (package, _dir) = package(vec![], vec!["kcp.json"]);
-
-		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoSpec)
-	}
-
-	#[test]
 	fn from_archive() {
 		let cwd = TempDir::new().unwrap();
 		let (package, _dir) = package(vec![], vec![]);
@@ -77,6 +69,14 @@ mod from_path {
 		let package = Package::from_path(archive);
 
 		assert!(package.is_ok())
+	}
+
+	#[test]
+	fn need_spec() {
+		let (package, _dir) = package(vec![], vec!["kcp.json"]);
+
+		assert!(package.is_err());
+		assert_eq!(package.unwrap_err(), Error::NoSpec)
 	}
 
 	#[test]
@@ -120,18 +120,18 @@ mod archive {
 	}
 
 	#[test]
-	fn creates_archive_with_spec_name() {
+	fn creates_archive_with_spec_info() {
 		let cwd = TempDir::new().unwrap();
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
-		let name = package.spec.name.clone();
+		let name = format!("{}_{}", package.spec.name, package.spec.version);
 
 		let compressed = package.archive(&PathBuf::from(cwd.path()));
 
 		assert!(compressed.is_ok());
 		assert_eq!(
-			compressed.unwrap().file_stem().unwrap().to_str().unwrap(),
-			name
+			name,
+			compressed.unwrap().file_stem().unwrap().to_str().unwrap()
 		);
 	}
 
@@ -160,33 +160,26 @@ mod compile {
 		#[test]
 		fn renders_with_null() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "{ values: _.values }")],
+				vec![("templates/main.jsonnet", "_.values")],
 				vec!["values.json", "values.schema.json"],
 			);
 			let package = package.unwrap();
 
 			let rendered = package.compile(None, None);
 
-			let json = r#"{ "values": null }"#;
-			let result: Value = helpers::values(&json);
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), Value::Null);
 		}
 
 		#[test]
 		fn renders_with_default_values() {
-			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "{ values: _.values }")],
-				vec![],
-			);
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.values")], vec![]);
 			let package = package.unwrap();
 
 			let values = helpers::values(&Fixture::contents("kcp/values.json"));
 
 			let rendered = package.compile(None, None);
 
-			let json = format!(r#"{{ "values": {0} }}"#, values);
-			let result: Value = helpers::values(&json);
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), values);
 		}
 
 		#[test]
@@ -201,17 +194,12 @@ mod compile {
 				merged
 			};
 
-			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "{ values: _.values }")],
-				vec![],
-			);
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.values")], vec![]);
 			let package = package.unwrap();
 
 			let rendered = package.compile(Some(values), None);
 
-			let json = format!(r#"{{ "values": {0} }}"#, merged);
-			let result = helpers::values(&json);
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), merged);
 		}
 	}
 
@@ -244,13 +232,13 @@ mod compile {
 				vec![
 					(
 						"templates/main.jsonnet",
-						"local valid = import './values/entry.jsonnet'; { imported: valid }",
+						"local valid = import './values/entry.jsonnet'; valid",
 					),
 					(
 						"templates/values/entry.jsonnet",
 						"import '../values.jsonnet'",
 					),
-					("templates/values.jsonnet", "{ values: _.values }"),
+					("templates/values.jsonnet", "_.values"),
 				],
 				vec![],
 			);
@@ -259,9 +247,7 @@ mod compile {
 
 			let rendered = package.compile(None, None);
 
-			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values);
-			let result: Value = helpers::values(&json);
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), values);
 		}
 
 		#[test]
@@ -271,10 +257,10 @@ mod compile {
 				vec![
 					(
 						"templates/main.jsonnet",
-						"local valid = import './values/entry.jsonnet'; { imported: valid }",
+						"local valid = import './values/entry.jsonnet'; valid",
 					),
 					("templates/values/entry.jsonnet", "import 'values.jsonnet'"),
-					("templates/values.jsonnet", "{ values: _.values }"),
+					("templates/values.jsonnet", "_.values"),
 				],
 				vec![],
 			);
@@ -292,12 +278,12 @@ mod compile {
 		fn includes_vendor_for_imports() {
 			let (package, _dir) = package(
 				vec![
-				(
-					"templates/main.jsonnet",
-					"local valid = import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'; { imported: valid }",
-				),
-				("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "{ values: _.values }"),
-			],
+					(
+						"templates/main.jsonnet",
+						"local valid = import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'; valid",
+					),
+					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.values"),
+				],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -305,9 +291,7 @@ mod compile {
 
 			let rendered = package.compile(None, None);
 
-			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values);
-			let result: Value = helpers::values(&json);
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), values);
 		}
 
 		#[test]
@@ -316,12 +300,9 @@ mod compile {
 				vec![
 					(
 						"templates/main.jsonnet",
-						"local valid = import 'k.libjsonnet'; { imported: valid }",
+						"local valid = import 'k.libjsonnet'; valid",
 					),
-					(
-						"vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet",
-						"{ values: _.values }",
-					),
+					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.values"),
 					(
 						"lib/k.libjsonnet",
 						"import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'",
@@ -334,9 +315,7 @@ mod compile {
 
 			let rendered = package.compile(None, None);
 
-			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values);
-			let result: Value = helpers::values(&json);
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), values);
 		}
 	}
 
@@ -346,10 +325,7 @@ mod compile {
 		#[test]
 		fn renders_templates() {
 			let (package, _dir) = package(
-				vec![(
-					"templates/main.jsonnet",
-					"{ settings: _.files('database.toml') }",
-				)],
+				vec![("templates/main.jsonnet", "_.files('database.toml')")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -359,22 +335,13 @@ mod compile {
 				helpers::template(&Fixture::contents("kcp/files/database.toml"), &values);
 			let rendered = package.compile(None, None);
 
-			let expected = {
-				let mut map = Map::<String, Value>::new();
-				map.insert(String::from("settings"), Value::String(template));
-				Value::Object(map)
-			};
-
-			assert_eq!(rendered.unwrap(), expected);
+			assert_eq!(rendered.unwrap(), Value::String(template));
 		}
 
 		#[test]
 		fn renders_multiple_templates() {
 			let (package, _dir) = package(
-				vec![(
-					"templates/main.jsonnet",
-					"{ settings: _.files('**/*.toml') }",
-				)],
+				vec![("templates/main.jsonnet", "_.files('**/*.toml')")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -389,30 +356,20 @@ mod compile {
 
 			let rendered = package.compile(None, None);
 
-			let expected = {
-				let mut map = Map::<String, Value>::new();
-				map.insert(
-					String::from("settings"),
-					Value::Array(vec![
-						Value::String(db_template),
-						Value::String(evt_template),
-					]),
-				);
-
-				Value::Object(map)
-			};
-
-			assert_eq!(rendered.unwrap(), expected);
+			assert_eq!(
+				rendered.unwrap(),
+				Value::Array(vec![
+					Value::String(db_template),
+					Value::String(evt_template),
+				])
+			);
 		}
 
 		#[test]
 		#[should_panic(expected = "Unable to compile templates")]
 		fn fails_on_invalid_templates() {
 			let (package, _dir) = package(
-				vec![(
-					"templates/main.jsonnet",
-					"{ settings: _.files('invalid.ini') }",
-				)],
+				vec![("templates/main.jsonnet", "_.files('invalid.ini')")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -428,10 +385,7 @@ mod compile {
 		#[test]
 		fn compiles_templates_with_empty_values() {
 			let (package, _dir) = package(
-				vec![(
-					"templates/main.jsonnet",
-					"{ settings: _.files('no-params.txt') }",
-				)],
+				vec![("templates/main.jsonnet", "_.files('no-params.txt')")],
 				vec!["values.json", "values.schema.json"],
 			);
 			let package = package.unwrap();
@@ -443,14 +397,7 @@ mod compile {
 
 			let rendered = package.compile(None, None);
 
-			let expected = {
-				let mut map = Map::<String, Value>::new();
-				map.insert(String::from("settings"), Value::String(template));
-
-				Value::Object(map)
-			};
-
-			assert_eq!(rendered.unwrap(), expected);
+			assert_eq!(rendered.unwrap(), Value::String(template));
 		}
 
 		#[test]
@@ -471,7 +418,7 @@ mod compile {
 		#[should_panic(expected = "No template found for glob")]
 		fn fails_on_not_found_template() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "{ settings: _.files('*.json') }")],
+				vec![("templates/main.jsonnet", "_.files('*.json')")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -491,28 +438,21 @@ mod compile {
 		#[test]
 		fn prefixes_package_name() {
 			let release_name = "rc";
-			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "{ package: _.package }")],
-				vec![],
-			);
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.package")], vec![]);
 			let package = package.unwrap();
-			let package_name = package.spec.name.clone();
+			let expected = format!("{}-{}", release_name, package.spec.name);
 
-			let rendered = package.compile(
-				None,
-				Some(Release {
-					name: String::from(release_name),
-				}),
-			);
+			let rendered = package
+				.compile(
+					None,
+					Some(Release {
+						name: String::from(release_name),
+					}),
+				)
+				.unwrap();
+			let actual = rendered.get("fullName").unwrap().as_str().unwrap();
 
-			let json = format!(
-				r#"{{ "package": {{ "name": "{0}", "fullName": "{1}" }} }}"#,
-				package_name,
-				format!("{}-{}", release_name, package_name)
-			);
-			let result = helpers::values(&json);
-
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(actual, expected);
 		}
 
 		#[test]
@@ -520,14 +460,31 @@ mod compile {
 			let release = Release {
 				name: String::from("rc"),
 			};
-			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "{ release: _.release }")],
-				vec![],
-			);
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.release")], vec![]);
 			let package = package.unwrap();
 
-			let json = format!(r#"{{ "release": {{ "name": "{0}" }} }}"#, release.name);
+			let json = format!(r#"{{ "name": "{0}" }}"#, release.name);
 			let rendered = package.compile(None, Some(release));
+
+			let result = helpers::values(&json);
+
+			assert_eq!(rendered.unwrap(), result);
+		}
+	}
+
+	mod package {
+		use super::*;
+
+		#[test]
+		fn is_injected_on_global() {
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.package")], vec![]);
+			let package = package.unwrap();
+
+			let json = format!(
+				r#"{{ "name": "{0}", "fullName": "{1}", "version": "{2}" }}"#,
+				package.spec.name, package.spec.name, package.spec.version
+			);
+			let rendered = package.compile(None, None);
 
 			let result = helpers::values(&json);
 
