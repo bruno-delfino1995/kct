@@ -9,8 +9,7 @@ const EXTENSION: &str = "tgz";
 
 pub fn archive(name: &str, source: &PathBuf, below: &PathBuf) -> Result<PathBuf, String> {
 	let mut target = below.clone();
-	target.push(name);
-	target.set_extension(EXTENSION);
+	target.push(format!("{}.{}", name, EXTENSION));
 
 	let file = File::create(target.clone()).map_err(|err| err.to_string())?;
 	let enc = GzEncoder::new(file, Compression::default());
