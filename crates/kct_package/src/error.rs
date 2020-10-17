@@ -2,11 +2,10 @@ use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
+	NoMain,
 	InvalidFormat,
 	NoSpec,
 	InvalidSpec,
-	// TODO: NoSchema bypass the return of an Option in
-	// schema::Schema::from_path, it's not an actual error
 	NoSchema,
 	InvalidSchema,
 	NoValues,
@@ -20,6 +19,7 @@ impl fmt::Display for Error {
 		use Error::*;
 
 		match self {
+			NoMain => write!(f, "Package doesn't have a main template"),
 			InvalidFormat => write!(f, "Package is neither directory nor a .tgz"),
 			NoSpec => write!(f, "Missing package file"),
 			InvalidSpec => write!(f, "Invalid package file"),

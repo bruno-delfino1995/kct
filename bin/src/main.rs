@@ -1,5 +1,3 @@
-#![feature(move_ref_pattern)]
-
 mod cli;
 
 use std::fmt::Display;

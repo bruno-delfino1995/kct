@@ -17,10 +17,12 @@ use tempfile::TempDir;
 const SCHEMA_FILE: &str = "values.schema.json";
 const SPEC_FILE: &str = "kcp.json";
 const VALUES_FILE: &str = "values.json";
+const MAIN_FILE: &str = "templates/main.jsonnet";
 
 #[derive(Debug)]
 pub struct Package {
 	pub root: PathBuf,
+	pub main: PathBuf,
 	pub spec: Spec,
 	pub schema: Option<Schema>,
 	pub values: Option<Value>,
@@ -77,10 +79,22 @@ impl Package {
 			}
 		};
 
+		let main = {
+			let mut path = root.clone();
+			path.push(MAIN_FILE);
+
+			if path.exists() {
+				path
+			} else {
+				return Err(Error::NoMain);
+			}
+		};
+
 		validate_values(&schema, &values)?;
 
 		Ok(Package {
 			root,
+			main,
 			spec,
 			schema,
 			values,
