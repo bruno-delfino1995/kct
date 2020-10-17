@@ -14,11 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `files` function to the global for compiling files with Jinja like engine
 - `--only` and `--except` parameters on `compile` to control which objects should be yielded
 - `values.json` file on the KCP structure for defaults
+- include `lib` path for package aliasing - inspired by [tanka](https://tanka.dev/tutorial/k-lib#aliasing)
 
 ### Changed
 
 - stop using TLAs and use `_` global with the previous TLAs as properties
 - rename crates to `kct_$crate` to enable publishing on [crates.io][https://crates.io]
+- remove `main` field from `kcp.json` in favor of static `templates/main.jsonnet`
 
 ## [0.1.0] - 2020-09-29
 

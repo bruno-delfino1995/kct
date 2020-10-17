@@ -37,9 +37,7 @@ pub fn compile(pkg: Package, values: Value, release: Option<Release>) -> Result<
 		create_global(&pkg, &values, &release),
 	);
 
-	let parsed = state
-		.evaluate_file_raw(&pkg.spec.main)
-		.map_err(render_issue)?;
+	let parsed = state.evaluate_file_raw(&pkg.main).map_err(render_issue)?;
 
 	let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
 
@@ -55,8 +53,22 @@ fn create_state(pkg: &Package) -> EvaluationState {
 
 	state.with_stdlib();
 
+	let vendor = {
+		let mut path = pkg.root.clone();
+		path.push("vendor");
+
+		path
+	};
+
+	let lib = {
+		let mut path = pkg.root.clone();
+		path.push("lib");
+
+		path
+	};
+
 	state.set_import_resolver(Box::new(FileImportResolver {
-		library_paths: vec![pkg.root.clone()],
+		library_paths: vec![vendor, lib],
 	}));
 
 	state

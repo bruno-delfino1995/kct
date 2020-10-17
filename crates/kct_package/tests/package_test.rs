@@ -10,21 +10,28 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn package(with: Vec<(&str, &str)>, withouth: Vec<&str>) -> (Result<Package, Error>, TempDir) {
-	let dir = {
-		use fs_extra::dir::{self, CopyOptions};
+	use fs_extra::dir::{self as fsdir, CopyOptions};
 
+	let dir = {
 		let tempdir = TempDir::new().unwrap();
 		let source = Fixture::path("kcp");
 
 		let mut options = CopyOptions::new();
 		options.content_only = true;
-		dir::copy(source, tempdir.path(), &options).unwrap();
+		fsdir::copy(source, tempdir.path(), &options).unwrap();
 
 		tempdir
 	};
 
 	for (path, contents) in with {
-		fs::write(dir.path().join(path), contents).unwrap();
+		let to_add = dir.path().join(path);
+		let parent = to_add.parent().unwrap();
+
+		if !parent.exists() {
+			fsdir::create_all(parent, false).unwrap();
+		}
+
+		fs::write(to_add, contents).unwrap();
 	}
 
 	for path in withouth {
@@ -87,6 +94,14 @@ mod from_path {
 		assert!(package.is_err());
 		assert_eq!(package.unwrap_err(), Error::NoSchema)
 	}
+
+	#[test]
+	fn needs_a_main_file() {
+		let (package, _dir) = package(vec![], vec!["templates/main.jsonnet"]);
+
+		assert!(package.is_err());
+		assert_eq!(package.unwrap_err(), Error::NoMain);
+	}
 }
 
 mod archive {
@@ -146,11 +161,9 @@ mod compile {
 		fn renders_with_null() {
 			let (package, _dir) = package(
 				vec![("templates/main.jsonnet", "{ values: _.values }")],
-				vec![],
+				vec!["values.json", "values.schema.json"],
 			);
-			let mut package = package.unwrap();
-			package.schema = None;
-			package.values = None;
+			let package = package.unwrap();
 
 			let rendered = package.compile(None, None);
 
@@ -160,17 +173,16 @@ mod compile {
 		}
 
 		#[test]
-		fn renders_with_value() {
+		fn renders_with_default_values() {
 			let (package, _dir) = package(
 				vec![("templates/main.jsonnet", "{ values: _.values }")],
 				vec![],
 			);
-			let mut package = package.unwrap();
-			package.values = None;
+			let package = package.unwrap();
 
 			let values = helpers::values(&Fixture::contents("kcp/values.json"));
 
-			let rendered = package.compile(Some(values.clone()), None);
+			let rendered = package.compile(None, None);
 
 			let json = format!(r#"{{ "values": {0} }}"#, values);
 			let result: Value = helpers::values(&json);
@@ -232,9 +244,88 @@ mod compile {
 				vec![
 					(
 						"templates/main.jsonnet",
-						"local valid = import './valid.jsonnet'; { imported: valid }",
+						"local valid = import './values/entry.jsonnet'; { imported: valid }",
 					),
-					("templates/valid.jsonnet", "{ values: _.values }"),
+					(
+						"templates/values/entry.jsonnet",
+						"import '../values.jsonnet'",
+					),
+					("templates/values.jsonnet", "{ values: _.values }"),
+				],
+				vec![],
+			);
+			let package = package.unwrap();
+			let values = package.values.clone().unwrap();
+
+			let rendered = package.compile(None, None);
+
+			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values);
+			let result: Value = helpers::values(&json);
+			assert_eq!(rendered.unwrap(), result);
+		}
+
+		#[test]
+		#[should_panic(expected = "can't resolve values.jsonnet")]
+		fn doesnt_include_templates_on_imports() {
+			let (package, _dir) = package(
+				vec![
+					(
+						"templates/main.jsonnet",
+						"local valid = import './values/entry.jsonnet'; { imported: valid }",
+					),
+					("templates/values/entry.jsonnet", "import 'values.jsonnet'"),
+					("templates/values.jsonnet", "{ values: _.values }"),
+				],
+				vec![],
+			);
+			let package = package.unwrap();
+
+			let rendered = package.compile(None, None).unwrap_err();
+
+			match rendered {
+				Error::RenderIssue(err) => panic!(err),
+				_ => panic!("It should be a render issue!"),
+			}
+		}
+
+		#[test]
+		fn includes_vendor_for_imports() {
+			let (package, _dir) = package(
+				vec![
+				(
+					"templates/main.jsonnet",
+					"local valid = import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'; { imported: valid }",
+				),
+				("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "{ values: _.values }"),
+			],
+				vec![],
+			);
+			let package = package.unwrap();
+			let values = package.values.clone().unwrap();
+
+			let rendered = package.compile(None, None);
+
+			let json = format!(r#"{{ "imported": {{ "values": {0} }} }}"#, values);
+			let result: Value = helpers::values(&json);
+			assert_eq!(rendered.unwrap(), result);
+		}
+
+		#[test]
+		fn includes_lib_for_aliasing() {
+			let (package, _dir) = package(
+				vec![
+					(
+						"templates/main.jsonnet",
+						"local valid = import 'k.libjsonnet'; { imported: valid }",
+					),
+					(
+						"vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet",
+						"{ values: _.values }",
+					),
+					(
+						"lib/k.libjsonnet",
+						"import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'",
+					),
 				],
 				vec![],
 			);
