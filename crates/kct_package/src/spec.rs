@@ -6,7 +6,6 @@ use std::path::PathBuf;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Spec {
 	pub name: String,
-	pub main: PathBuf,
 }
 
 impl Spec {
