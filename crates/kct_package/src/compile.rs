@@ -80,6 +80,10 @@ fn create_global(pkg: &Package, values: &Value, release: &Option<Release>) -> Va
 	let package = {
 		let mut map = Map::<String, Value>::new();
 		map.insert(String::from("name"), Value::String(pkg.spec.name.clone()));
+		map.insert(
+			String::from("version"),
+			Value::String(pkg.spec.version.to_string()),
+		);
 
 		let full_name = match release {
 			Some(release) => format!("{}-{}", release.name, pkg.spec.name),

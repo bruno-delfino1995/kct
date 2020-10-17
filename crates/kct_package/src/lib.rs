@@ -106,7 +106,8 @@ impl Package {
 /// Methods
 impl Package {
 	pub fn archive(self, dest: &PathBuf) -> std::result::Result<PathBuf, String> {
-		archive::archive(&self.spec.name, &self.root, dest)
+		let name = format!("{}_{}", self.spec.name, self.spec.version);
+		archive::archive(&name, &self.root, dest)
 	}
 
 	pub fn compile(self, values: Option<Value>, release: Option<Release>) -> Result<Value> {
