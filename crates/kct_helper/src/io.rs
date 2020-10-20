@@ -1,24 +1,16 @@
-use std::fmt;
 use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
+use thiserror::Error;
 
+#[derive(Error, Debug, PartialEq)]
 pub enum Error {
+	#[error("Path is not a file")]
 	NotFile,
+	#[error("File not found")]
 	NotFound,
+	#[error("Unable to read")]
 	UnableToRead,
-}
-
-impl fmt::Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		use Error::*;
-
-		match self {
-			NotFile => write!(f, "Path is not a file"),
-			NotFound => write!(f, "File not found"),
-			UnableToRead => write!(f, "Unable to read"),
-		}
-	}
 }
 
 pub fn from_file(file: &PathBuf) -> Result<String, Error> {

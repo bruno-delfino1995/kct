@@ -1,21 +1,12 @@
 use serde_json::{Map, Value};
-use std::fmt;
 use std::path::PathBuf;
+use thiserror::Error;
 use valico::json_schema::Scope;
 
-#[derive(PartialEq, Debug)]
+#[derive(Error, PartialEq, Debug)]
 pub enum Error {
+	#[error("The rendered json is invalid")]
 	Invalid,
-}
-
-impl fmt::Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		use self::Error::*;
-
-		match self {
-			Invalid => write!(f, "The rendered json is invalid"),
-		}
-	}
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

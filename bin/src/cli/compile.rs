@@ -4,6 +4,7 @@ use kct_helper::io;
 use kct_kube::Filter;
 use kct_package::{Package, Release};
 use serde_json::Value;
+use std::error::Error;
 use std::path::PathBuf;
 
 pub fn command() -> App<'static, 'static> {
@@ -42,14 +43,12 @@ pub fn command() -> App<'static, 'static> {
 		)
 }
 
-// TODO: Can't we use Box<dyn Display> for error since all our errors implement
-// Display?
-pub fn run(matches: &ArgMatches) -> Result<String, String> {
+pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	let values_from: Option<PathBuf> = matches.value_of("values").map(PathBuf::from);
 	let values = parse_values(&values_from)?;
 
 	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
-	let package = Package::from_path(package_from).map_err(|err| err.to_string())?;
+	let package = Package::from_path(package_from)?;
 
 	let release = matches.value_of("release").map(|name| Release {
 		name: String::from(name),
@@ -59,11 +58,9 @@ pub fn run(matches: &ArgMatches) -> Result<String, String> {
 	let except: Vec<PathBuf> = matches.value_of("except").map(as_paths).unwrap_or_default();
 	let filter = Filter { only, except };
 
-	let rendered = package
-		.compile(values, release)
-		.map_err(|err| err.to_string())?;
+	let rendered = package.compile(values, release)?;
 
-	let objects = kct_kube::find(&rendered, &filter).map_err(|err| err.to_string())?;
+	let objects = kct_kube::find(&rendered, &filter)?;
 	let to_apply = kct_kube::glue(&objects);
 
 	Ok(to_apply.to_string())

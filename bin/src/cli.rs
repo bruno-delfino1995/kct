@@ -2,6 +2,14 @@ mod compile;
 mod package;
 
 use clap::{App, ArgMatches};
+use std::error::Error;
+use thiserror::Error;
+
+#[derive(Error, Debug, PartialEq)]
+pub enum CliError {
+	#[error("Unknown command or args combination")]
+	InvalidCall,
+}
 
 pub fn create() -> App<'static, 'static> {
 	App::new("Kubernetes Configuration Tool")
@@ -11,10 +19,10 @@ pub fn create() -> App<'static, 'static> {
 		.subcommand(package::command())
 }
 
-pub fn run<'a>(matches: (&str, Option<&ArgMatches<'a>>)) -> Result<String, String> {
+pub fn run<'a>(matches: (&str, Option<&ArgMatches<'a>>)) -> Result<String, Box<dyn Error>> {
 	match matches {
 		("compile", Some(matches)) => compile::run(matches),
 		("package", Some(matches)) => package::run(matches),
-		_ => Err(String::from("Unknown arguments combination")),
+		_ => Err(CliError::InvalidCall.into()),
 	}
 }
