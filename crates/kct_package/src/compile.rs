@@ -30,7 +30,16 @@ pub struct Release {
 pub fn compile(pkg: Package, values: Value, release: Option<Release>) -> Result<Value> {
 	let state = create_state(&pkg);
 
-	let render_issue = |err: LocError| Error::RenderIssue(format!("{}", err.error()));
+	let render_issue = |err: LocError| {
+		let message = match err.error() {
+			JrError::ImportSyntaxError { path, .. } => {
+				format!("syntax error at {}", path.display())
+			}
+			err => err.to_string(),
+		};
+
+		Error::RenderIssue(message)
+	};
 
 	state.settings_mut().globals.insert(
 		GLOBAL_VARIABLE.into(),
@@ -190,13 +199,16 @@ fn compile_template(
 		.build()
 		.map_err(|err| format!("Invalid glob provided ({}): {}", glob, err))?;
 
-	let dirs: Vec<DirEntry> = globwalker
+	let entries: Vec<DirEntry> = globwalker
 		.collect::<std::result::Result<_, _>>()
 		.map_err(|err| format!("Unable to resolve globs: {}", err))?;
 
-	let contents: Vec<String> = dirs
+	let mut paths: Vec<PathBuf> = entries.into_iter().map(DirEntry::into_path).collect();
+
+	paths.sort();
+
+	let contents: Vec<String> = paths
 		.into_iter()
-		.map(DirEntry::into_path)
 		.map(fs::read_to_string)
 		.collect::<std::result::Result<_, _>>()
 		.map_err(|err| format!("Unable to read templates: {}", err))?;

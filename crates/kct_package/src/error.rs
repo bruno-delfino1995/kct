@@ -1,40 +1,27 @@
-use std::fmt;
+use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum Error {
+	#[error("Package doesn't have a main template")]
 	NoMain,
+	#[error("Package is neither directory nor a .tgz")]
 	InvalidFormat,
+	#[error("Missing package file")]
 	NoSpec,
+	#[error("Invalid package file")]
 	InvalidSpec,
+	#[error("No schema file to validate your values")]
 	NoSchema,
+	#[error("Invalid schema file")]
 	InvalidSchema,
+	#[error("No values where provided")]
 	NoValues,
+	#[error("The values provided don't match the schema")]
 	InvalidValues,
+	#[error("An error happened while rendering your templates: {0}")]
 	RenderIssue(String),
+	#[error("Your template couldn't be parsed as JSON")]
 	InvalidOutput,
-}
-
-impl fmt::Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		use Error::*;
-
-		match self {
-			NoMain => write!(f, "Package doesn't have a main template"),
-			InvalidFormat => write!(f, "Package is neither directory nor a .tgz"),
-			NoSpec => write!(f, "Missing package file"),
-			InvalidSpec => write!(f, "Invalid package file"),
-			NoSchema => write!(f, "No schema file to validate your values"),
-			InvalidSchema => write!(f, "Invalid schema file"),
-			NoValues => write!(f, "No values where provided"),
-			InvalidValues => write!(f, "The values provided don't match the schema"),
-			RenderIssue(err) => write!(
-				f,
-				"An error happened while rendering your templates: {}",
-				err
-			),
-			InvalidOutput => write!(f, "Your template couldn't be parsed as JSON"),
-		}
-	}
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
