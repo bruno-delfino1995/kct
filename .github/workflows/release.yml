@@ -21,8 +21,9 @@
 # SOFTWARE.
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - v*
 
 name: Release
 
