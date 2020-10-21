@@ -1,7 +1,9 @@
 [package]
 name = "kct_helper"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
+description = "Utilities used by KCT components"
+repository = "https://github.com/bruno-delfino1995/kct"
 edition = "2018"
 license = "MIT"
 
