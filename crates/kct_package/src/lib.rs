@@ -140,7 +140,6 @@ fn validate_values(schema: &Option<Schema>, values: &Option<Value>) -> Result<()
 	if values.is_object() && schema.validate(&values) {
 		Ok(())
 	} else {
-		println!("Values = {}", values);
 		Err(Error::InvalidValues)
 	}
 }
