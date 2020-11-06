@@ -5,6 +5,8 @@ use clap::{App, ArgMatches};
 use std::error::Error;
 use thiserror::Error;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Error, Debug, PartialEq)]
 pub enum CliError {
 	#[error("Unknown command or args combination")]
@@ -13,8 +15,8 @@ pub enum CliError {
 
 pub fn create() -> App<'static, 'static> {
 	App::new("Kubernetes Configuration Tool")
-		.version("0.1.0")
-		.about("K8S config without hideous templates or context babysitting")
+		.version(VERSION)
+		.about("K8s config without hideous templates or context babysitting")
 		.subcommand(compile::command())
 		.subcommand(package::command())
 }
