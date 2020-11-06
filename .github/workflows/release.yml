@@ -30,14 +30,26 @@ name: Release
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
@@ -46,27 +58,40 @@ jobs:
 
   github-release:
     needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     env:
       RUST: nightly
       TARGET: x86_64-unknown-linux-musl
       BIN: kct
       NAME: kct-linux-amd64
-    runs-on: ubuntu-latest
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.RUST }}
           override: true
           target: ${{ env.TARGET }}
-      - name: Checkout
-        uses: actions/checkout@v2
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Run build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --bin=kct --release --target ${{ env.TARGET }}
-      - name: Package
+
+      - name: Create packages
         shell: bash
         run: |
           strip target/${{ env.TARGET }}/release/${{ env.BIN }}
@@ -74,8 +99,10 @@ jobs:
 
           cp ${{ env.BIN }} ../../../${{ env.NAME }}
           cd -
+
       - name: Generate SHA-256
         run: shasum -a 256 ${{ env.NAME }} > ${{ env.NAME }}.sha256
+
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
@@ -87,26 +114,41 @@ jobs:
   cargo-release:
     needs: [test]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
-      - name: Checkout
-        uses: actions/checkout@v2
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Run cargo login
         uses: actions-rs/cargo@v1
         with:
           command: login
           args: ${{ secrets.CARGO_TOKEN }}
+
       - name: Publish crates
         shell: bash
         run: |
           crates=('helper' 'kube' 'package')
           for crate in ${crates[@]}; do
             cargo publish --manifest-path="crates/kct_$crate/Cargo.toml"
+            sleep 60
           done
+
       - name: Publish binary
         uses: actions-rs/cargo@v1
         with:
