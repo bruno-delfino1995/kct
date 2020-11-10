@@ -9,7 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
-fn package(with: Vec<(&str, &str)>, withouth: Vec<&str>) -> (Result<Package, Error>, TempDir) {
+fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Error>, TempDir) {
 	use fs_extra::dir::{self as fsdir, CopyOptions};
 
 	let dir = {
@@ -34,7 +34,7 @@ fn package(with: Vec<(&str, &str)>, withouth: Vec<&str>) -> (Result<Package, Err
 		fs::write(to_add, contents).unwrap();
 	}
 
-	for path in withouth {
+	for path in without {
 		let to_remove = dir.path().join(path);
 
 		if to_remove.is_dir() {
@@ -489,6 +489,114 @@ mod compile {
 			let result = helpers::values(&json);
 
 			assert_eq!(rendered.unwrap(), result);
+		}
+	}
+
+	mod subpackage {
+		use super::*;
+
+		fn subpackage(
+			dir: &TempDir,
+			name: &str,
+			with: Vec<(&str, &str)>,
+			without: Vec<&str>,
+		) -> PathBuf {
+			let (package, _dir) = package(with, without);
+			let package = package.unwrap();
+
+			let archive = {
+				let path = dir.path().join("kcps");
+				fs::create_dir(&path).unwrap();
+
+				package.archive(&path).unwrap()
+			};
+
+			let at = {
+				let mut sub = archive.clone();
+				sub.set_file_name(name);
+				sub.set_extension("tgz");
+
+				sub
+			};
+
+			fs::rename(&archive, &at).unwrap();
+
+			at
+		}
+
+		#[test]
+		fn are_rendered_with_include() {
+			let (root, dir) = package(
+				vec![("templates/main.jsonnet", "_.include('sub', _.values)")],
+				vec![],
+			);
+			let _archive = subpackage(
+				&dir,
+				"sub",
+				vec![("templates/main.jsonnet", "_.values")],
+				vec![],
+			);
+			let package = root.unwrap();
+
+			let rendered = package.compile(None, None);
+
+			let result = helpers::values(&Fixture::contents("kcp/values.json"));
+
+			assert_eq!(rendered.unwrap(), result);
+		}
+
+		// NOTE: As subpackages are supposed to be archived packages, we don't
+		// need to validate all the same cases as we do for packages. This test
+		// is usefull to guarantee that we pass the correct values while
+		// compiling the subpackage, not to check the realm of invalid packages
+		#[test]
+		#[should_panic(expected = "values provided don't match the schema")]
+		fn validate_values() {
+			let (root, dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"_.include('sub', { database: null })",
+				)],
+				vec![],
+			);
+			let _archive = subpackage(
+				&dir,
+				"sub",
+				vec![("templates/main.jsonnet", "_.values")],
+				vec![],
+			);
+			let package = root.unwrap();
+
+			let rendered = package.compile(None, None).unwrap_err();
+
+			match rendered {
+				Error::RenderIssue(err) => panic!(err),
+				_ => panic!("It should be a render issue!"),
+			}
+		}
+
+		#[test]
+		fn has_same_release() {
+			let name = "rc";
+			let release = Release {
+				name: String::from(name),
+			};
+			let (root, dir) = package(
+				vec![("templates/main.jsonnet", "_.include('sub', _.values)")],
+				vec![],
+			);
+			let _archive = subpackage(
+				&dir,
+				"sub",
+				vec![("templates/main.jsonnet", "_.release")],
+				vec![],
+			);
+			let package = root.unwrap();
+
+			let rendered = package.compile(None, Some(release)).unwrap();
+
+			let actual = rendered.get("name").unwrap().as_str().unwrap();
+			assert_eq!(actual, name);
 		}
 	}
 }

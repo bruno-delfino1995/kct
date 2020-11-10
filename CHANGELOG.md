@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - documentation about motivation, usage, and package structure
+- `include` function to render a subpackage under `kcps` with the provided values
 
 ### Fixed
 
