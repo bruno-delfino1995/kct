@@ -18,11 +18,13 @@ The motivation came from ["The State of Kubernetes Configuration Management: An 
 
 We want to trust the users with context and cluster access, by using their [preffered tools](https://github.com/ahmetb/kubectx) to manage kubeconfig, while focusing on the creation of the resources with a better templating language.
 
-<a name="acknowledgments"></a>
+<a name="roadmap"></a>
 
 ## Roadmap
 
 We don't have a clear set of features we want to have, but we do have the path we want to take. You can get a glimpse of such path by looking at our [milestones](https://github.com/kseat/kct/milestones). As summary, we're aspiring to be a Helm alternative but with: optional releases, file templating, Jsonnet, build stages, and more.
+
+<a name="acknowledgments"></a>
 
 ## Acknowledgments
 
