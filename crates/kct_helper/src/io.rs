@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::{self, Read};
-use std::path::PathBuf;
+use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -13,7 +13,7 @@ pub enum Error {
 	UnableToRead,
 }
 
-pub fn from_file(file: &PathBuf) -> Result<String, Error> {
+pub fn from_file(file: &Path) -> Result<String, Error> {
 	if !file.exists() {
 		return Err(Error::NotFound);
 	}

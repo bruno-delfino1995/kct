@@ -1,5 +1,5 @@
 use serde_json::{Map, Value};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use valico::json_schema::Scope;
 
@@ -18,7 +18,7 @@ pub struct Filter {
 }
 
 impl Filter {
-	fn pass(&self, path: &PathBuf) -> bool {
+	fn pass(&self, path: &Path) -> bool {
 		let allow = self.only.iter().any(|allow| path.starts_with(allow));
 
 		let disallow = self

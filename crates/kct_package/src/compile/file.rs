@@ -7,7 +7,7 @@ use jrsonnet_evaluator::{
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::{Map, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tera::{Context, Tera};
 
@@ -54,11 +54,11 @@ pub fn create_function(pkg: &Package, values: &Value) -> Val {
 }
 
 fn compile_template(
-	root: &PathBuf,
+	root: &Path,
 	glob: &str,
 	values: &Value,
 ) -> std::result::Result<Vec<String>, String> {
-	let mut templates_dir = root.clone();
+	let mut templates_dir = root.to_path_buf();
 	templates_dir.push(TEMPLATES_FOLDER);
 
 	if !templates_dir.exists() {

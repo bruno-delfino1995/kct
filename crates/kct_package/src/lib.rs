@@ -11,7 +11,7 @@ use self::spec::Spec;
 pub use compile::Release;
 use kct_helper::{io, json};
 use serde_json::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 const SCHEMA_FILE: &str = "values.schema.json";
@@ -105,7 +105,7 @@ impl Package {
 
 /// Methods
 impl Package {
-	pub fn archive(self, dest: &PathBuf) -> std::result::Result<PathBuf, String> {
+	pub fn archive(self, dest: &Path) -> std::result::Result<PathBuf, String> {
 		let name = format!("{}_{}", self.spec.name, self.spec.version);
 		archive::archive(&name, &self.root, dest)
 	}

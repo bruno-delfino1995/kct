@@ -6,6 +6,7 @@ use kct_helper::json;
 use kct_package::{error::Error, Package, Release};
 use serde_json::{Map, Value};
 use std::fs;
+use std::panic::panic_any;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -221,7 +222,7 @@ mod compile {
 			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic!(err),
+				Error::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -269,7 +270,7 @@ mod compile {
 			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic!(err),
+				Error::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -377,7 +378,7 @@ mod compile {
 			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic!(err),
+				Error::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -409,7 +410,7 @@ mod compile {
 			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic!(err),
+				Error::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -426,7 +427,7 @@ mod compile {
 			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic!(err),
+				Error::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -570,7 +571,7 @@ mod compile {
 			let rendered = package.compile(None, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic!(err),
+				Error::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}

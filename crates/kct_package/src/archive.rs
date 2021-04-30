@@ -2,13 +2,13 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tar::{Archive, Builder};
 
 const EXTENSION: &str = "tgz";
 
-pub fn archive(name: &str, source: &PathBuf, below: &PathBuf) -> Result<PathBuf, String> {
-	let mut target = below.clone();
+pub fn archive(name: &str, source: &Path, below: &Path) -> Result<PathBuf, String> {
+	let mut target = below.to_path_buf();
 	target.push(format!("{}.{}", name, EXTENSION));
 
 	let file = File::create(target.clone()).map_err(|err| err.to_string())?;
@@ -21,7 +21,7 @@ pub fn archive(name: &str, source: &PathBuf, below: &PathBuf) -> Result<PathBuf,
 	Ok(target)
 }
 
-pub fn unarchive(archive: &PathBuf, dest: &PathBuf) -> Result<(), String> {
+pub fn unarchive(archive: &Path, dest: &Path) -> Result<(), String> {
 	let ext = archive.extension().unwrap().to_str();
 	if ext != Some(EXTENSION) {
 		return Err(String::from("Package is not a .tgz"));
