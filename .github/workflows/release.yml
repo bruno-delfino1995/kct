@@ -38,7 +38,7 @@ jobs:
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           override: true
 
       - name: Cache cargo dependencies
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      RUST: nightly
+      RUST: stable
       TARGET: x86_64-unknown-linux-musl
       BIN: kct
       NAME: kct-linux-amd64
@@ -122,7 +122,7 @@ jobs:
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           override: true
 
       - name: Cache cargo dependencies
@@ -134,6 +134,12 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install cargo release
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-release
+
       - name: Run cargo login
         uses: actions-rs/cargo@v1
         with:
@@ -141,16 +147,7 @@ jobs:
           args: ${{ secrets.CARGO_TOKEN }}
 
       - name: Publish crates
-        shell: bash
-        run: |
-          crates=('helper' 'kube' 'package')
-          for crate in ${crates[@]}; do
-            cargo publish --manifest-path="crates/kct_$crate/Cargo.toml"
-            sleep 60
-          done
-
-      - name: Publish binary
         uses: actions-rs/cargo@v1
         with:
-          command: publish
-          args: --manifest-path=bin/Cargo.toml
+          command: release
+          args: --no-dev-version --skip-push --skip-tag --no-confirm
