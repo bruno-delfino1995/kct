@@ -15,7 +15,7 @@ pub fn create_function(pkg: &Package, release: &Option<Release>) -> Val {
 
 	let root = pkg.root.clone().join(SUBPACKAGES_FOLDER);
 	let release = release.clone();
-	let render = move |params: &[Val]| -> std::result::Result<Val, LocError> {
+	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
 		let package = match name {
 			Val::Str(name) => name,

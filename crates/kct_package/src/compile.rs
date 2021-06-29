@@ -7,11 +7,12 @@ use jrsonnet_evaluator::{
 	error::Error as JrError,
 	error::LocError,
 	trace::{ExplainingFormat, PathResolver},
-	EvaluationState, FileImportResolver, LazyBinding, LazyVal, ObjMember, ObjValue, Val,
+	Context, EvaluationState, FileImportResolver, LazyBinding, LazyVal, ObjMember, ObjValue, Val,
 };
+use jrsonnet_interner::IStr;
 use jrsonnet_parser::Visibility;
+use rustc_hash::FxHashMap;
 use serde_json::{Map, Value};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 pub const FILES_PARAM: &str = "files";
@@ -126,7 +127,7 @@ fn create_global(pkg: &Package, values: &Value, release: &Option<Release>) -> Va
 		(INCLUDE_PARAM, include),
 	];
 
-	let entries: HashMap<Rc<str>, ObjMember> = pairs
+	let entries: FxHashMap<IStr, ObjMember> = pairs
 		.into_iter()
 		.map(|(k, v)| {
 			(
@@ -141,5 +142,10 @@ fn create_global(pkg: &Package, values: &Value, release: &Option<Release>) -> Va
 		})
 		.collect();
 
-	Val::Obj(ObjValue::new(None, Rc::new(entries)))
+	Val::Obj(ObjValue::new(
+		Context::new(),
+		None,
+		Rc::new(entries),
+		Rc::new(vec![]),
+	))
 }

@@ -16,7 +16,7 @@ pub fn create_function(pkg: &Package, values: &Value) -> Val {
 
 	let root = pkg.root.clone();
 	let values = values.clone();
-	let render = move |params: &[Val]| -> std::result::Result<Val, LocError> {
+	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
 		let file = match name {
 			Val::Str(name) => name,
