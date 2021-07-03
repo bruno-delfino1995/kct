@@ -61,9 +61,13 @@ pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	let rendered = package.compile(values, release)?;
 
 	let objects = kct_kube::find(&rendered, &filter)?;
-	let to_apply = kct_kube::glue(&objects);
 
-	Ok(to_apply.to_string())
+	let documents = objects
+		.iter()
+		.map(|object| serde_yaml::to_string(object).unwrap())
+		.collect();
+
+	Ok(documents)
 }
 
 fn parse_values(path: &Option<PathBuf>) -> Result<Option<Value>, String> {

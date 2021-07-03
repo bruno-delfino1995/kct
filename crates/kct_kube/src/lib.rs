@@ -1,4 +1,4 @@
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use valico::json_schema::Scope;
@@ -64,25 +64,6 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<Value>> {
 	}
 
 	Ok(objects)
-}
-
-pub fn glue(obj: &[Value]) -> Value {
-	if obj.len() == 1 {
-		obj[0].to_owned()
-	} else {
-		let object = {
-			let mut map = Map::<String, Value>::new();
-			map.insert(
-				String::from("apiVersion"),
-				Value::String(String::from("v1")),
-			);
-			map.insert(String::from("kind"), Value::String(String::from("List")));
-			map.insert(String::from("items"), Value::Array(obj.to_owned()));
-			map
-		};
-
-		Value::Object(object)
-	}
 }
 
 const K8S_OBJECT_SCHEMA: &str = r#"{

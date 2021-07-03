@@ -7,7 +7,8 @@ use jrsonnet_evaluator::{
 	error::Error as JrError,
 	error::LocError,
 	trace::{ExplainingFormat, PathResolver},
-	Context, EvaluationState, FileImportResolver, LazyBinding, LazyVal, ObjMember, ObjValue, Val,
+	Context, EvaluationState, FileImportResolver, LazyBinding, LazyVal, ManifestFormat, ObjMember,
+	ObjValue, Val,
 };
 use jrsonnet_interner::IStr;
 use jrsonnet_parser::Visibility;
@@ -81,6 +82,8 @@ fn create_state(pkg: &Package) -> EvaluationState {
 	state.set_import_resolver(Box::new(FileImportResolver {
 		library_paths: vec![vendor, lib],
 	}));
+
+	state.set_manifest_format(ManifestFormat::Json(0));
 
 	state
 }
