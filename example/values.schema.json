@@ -1,0 +1,24 @@
+{
+	"$schema": "http://json-schema.org/schema#",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["database"],
+	"properties": {
+		"database": {
+			"type": "object",
+			"required": ["host", "credentials"],
+			"properties": {
+				"host": { "type": "string" },
+				"port": { "type": "integer" },
+				"credentials": {
+					"type": "object",
+					"required": ["user", "pass"],
+					"properties": {
+						"user": { "type": "string" },
+						"pass": { "type": "string" }
+					}
+				}
+			}
+		}
+	}
+}
