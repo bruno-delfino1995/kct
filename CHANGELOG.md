@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - documentation about motivation, usage, and package structure
 - `include` function to render a subpackage under `kcps` with the provided values
+- `--output` parameter on `compile` to specify where to place compiled artifacts
 
 ### Changed
 
 - render yaml multi-documents stream instead of kubectl List object
+- `--values|-f` option into `--input|-i` on compile
 
 ### Fixed
 

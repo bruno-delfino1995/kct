@@ -15,8 +15,6 @@ pub fn command() -> App<'static, 'static> {
 		)
 }
 
-// TODO: Can't we use Box<dyn Display> for error since all our errors implement
-// Display?
 pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
 	let package = Package::from_path(package_from)?;

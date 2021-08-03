@@ -1,3 +1,5 @@
+use lazy_static::lazy_static;
+use regex::Regex;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -30,7 +32,7 @@ impl Filter {
 	}
 }
 
-pub fn find(json: &Value, filter: &Filter) -> Result<Vec<Value>> {
+pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 	let mut objects = vec![];
 	let mut walker: Vec<Box<dyn Iterator<Item = (PathBuf, &Value)>>> =
 		vec![Box::new(vec![(PathBuf::from("/"), json)].into_iter())];
@@ -46,17 +48,25 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<Value>> {
 
 		if is_object(json) {
 			if filter.pass(&base) {
-				objects.push(json.to_owned());
+				objects.push((base, json.to_owned()));
 			}
 		} else {
 			match json {
 				Value::Object(map) => {
-					walker.push(Box::new(map.into_iter().map(move |(k, v)| {
-						let mut path = base.clone();
-						path.push(k);
+					let mut members: Vec<(PathBuf, &Value)> = Vec::with_capacity(map.len());
 
-						(path, v)
-					})));
+					for (k, v) in map {
+						if !is_valid_path(k) {
+							return Err(Error::Invalid);
+						} else {
+							let mut path = base.clone();
+							path.push(k);
+
+							members.push((path, v))
+						}
+					}
+
+					walker.push(Box::new(members.into_iter()));
 				}
 				_ => return Err(Error::Invalid),
 			}
@@ -87,5 +97,14 @@ fn is_object(obj: &Value) -> bool {
 	let mut scope = Scope::new();
 	let validator = scope.compile_and_return(schema, false).unwrap();
 
-	validator.validate(&obj).is_strictly_valid()
+	validator.validate(obj).is_strictly_valid()
+}
+
+fn is_valid_path(path: &str) -> bool {
+	lazy_static! {
+		static ref PATTERN: Regex =
+			Regex::new(r"(?i)^[a-z0-9]$|^[a-z0-9][a-z0-9-]*[a-z0-9]$").unwrap();
+	}
+
+	PATTERN.is_match(path)
 }

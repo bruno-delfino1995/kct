@@ -137,7 +137,7 @@ fn validate_values(schema: &Option<Schema>, values: &Option<Value>) -> Result<()
 		(Some(schema), Some(value)) => (schema, value),
 	};
 
-	if values.is_object() && schema.validate(&values) {
+	if values.is_object() && schema.validate(values) {
 		Ok(())
 	} else {
 		Err(Error::InvalidValues)

@@ -1,4 +1,6 @@
 {
-	secret: import 'secret.jsonnet',
+	configs: {
+		secret: import 'secret.jsonnet'
+	},
 	deployment: import 'deployment.jsonnet'
 }
