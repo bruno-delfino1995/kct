@@ -52,8 +52,8 @@ pub fn command() -> App<'static, 'static> {
 }
 
 pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
-	let values_from: Option<PathBuf> = matches.value_of("values").map(PathBuf::from);
-	let values = parse_values(&values_from)?;
+	let input_from: Option<PathBuf> = matches.value_of("input").map(PathBuf::from);
+	let input = parse_values(&input_from)?;
 
 	let output: Option<PathBuf> = matches.value_of("output").map(PathBuf::from);
 	let output = ensure_output_exists(&output)?;
@@ -69,7 +69,7 @@ pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	let except: Vec<PathBuf> = matches.value_of("except").map(as_paths).unwrap_or_default();
 	let filter = Filter { only, except };
 
-	let rendered = package.compile(values, release)?;
+	let rendered = package.compile(input, release)?;
 
 	let objects = kct_kube::find(&rendered, &filter)?;
 
