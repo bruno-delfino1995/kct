@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- allows multiple occurrences of `input`
+
 ### Fixed
 
 - fix missing conversion from `values` to `input`

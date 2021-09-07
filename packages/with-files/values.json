@@ -1,9 +1,9 @@
 {
 	"database": {
-		"host": "postgres",
+		"host": "default",
 		"credentials": {
-			"user": "user",
-			"pass": "pass"
+			"user": "default",
+			"pass": "default"
 		}
 	}
 }

@@ -1,9 +1,11 @@
+use crate::cli::CliError;
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
 use kct_helper::io;
+use kct_helper::json::merge;
 use kct_kube::Filter;
 use kct_package::{Package, Release};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::env;
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -22,6 +24,8 @@ pub fn command() -> App<'static, 'static> {
 				.short("i")
 				.long("input")
 				.help("Sets the input values for the package")
+				.multiple(true)
+				.number_of_values(1)
 				.takes_value(true),
 		)
 		.arg(
@@ -52,8 +56,13 @@ pub fn command() -> App<'static, 'static> {
 }
 
 pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
-	let input_from: Option<PathBuf> = matches.value_of("input").map(PathBuf::from);
-	let input = parse_values(&input_from)?;
+	let inputs: Vec<Result<Value, String>> = matches
+		.values_of("input")
+		.unwrap_or_default()
+		.map(PathBuf::from)
+		.map(|path| parse_input(&path))
+		.collect();
+	let input = merge_inputs(&inputs).map_err(CliError::InvalidInput)?;
 
 	let output: Option<PathBuf> = matches.value_of("output").map(PathBuf::from);
 	let output = ensure_output_exists(&output)?;
@@ -95,23 +104,38 @@ pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	}
 }
 
-fn parse_values(path: &Option<PathBuf>) -> Result<Option<Value>, String> {
-	match path {
-		None => Ok(None),
-		Some(path) => {
-			let contents = if path == &PathBuf::from("-") {
-				io::from_stdin().map_err(|err| err.to_string())?
-			} else {
-				io::from_file(path).map_err(|err| err.to_string())?
-			};
+fn parse_input(path: &Path) -> Result<Value, String> {
+	let contents = if path == PathBuf::from("-") {
+		io::from_stdin().map_err(|err| err.to_string())?
+	} else {
+		io::from_file(path).map_err(|err| err.to_string())?
+	};
 
-			let file = path.to_str().unwrap();
-			let parsed: Value = serde_json::from_str(&contents)
-				.map_err(|_err| format!("Unable to parse {}", file))?;
+	let file = path.to_str().unwrap();
+	let parsed: Value =
+		serde_json::from_str(&contents).map_err(|_err| format!("Unable to parse {}", file))?;
 
-			Ok(Some(parsed))
+	Ok(parsed)
+}
+
+fn merge_inputs(inputs: &[Result<Value, String>]) -> Result<Option<Value>, String> {
+	if inputs.is_empty() {
+		return Ok(None);
+	}
+
+	let mut base = Value::Object(Map::new());
+
+	for value in inputs {
+		match value {
+			Err(err) => return Err(err.to_owned()),
+			Ok(input) => match input {
+				Value::Object(_map) => merge(&mut base, input),
+				_ => return Err(String::from("input must be an object")),
+			},
 		}
 	}
+
+	Ok(Some(base))
 }
 
 fn ensure_output_exists(path: &Option<PathBuf>) -> Result<Option<PathBuf>, String> {

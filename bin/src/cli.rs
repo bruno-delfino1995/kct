@@ -11,6 +11,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub enum CliError {
 	#[error("Unknown command or args combination")]
 	InvalidCall,
+	#[error("Failed to parse input: {0}")]
+	InvalidInput(String),
 }
 
 pub fn create() -> App<'static, 'static> {
