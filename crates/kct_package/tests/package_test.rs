@@ -81,16 +81,16 @@ mod from_path {
 	}
 
 	#[test]
-	fn requests_values_for_schema() {
-		let (package, _dir) = package(vec![], vec!["values.json"]);
+	fn requests_input_for_schema() {
+		let (package, _dir) = package(vec![], vec!["default.json"]);
 
 		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoValues)
+		assert_eq!(package.unwrap_err(), Error::NoInput)
 	}
 
 	#[test]
-	fn request_schema_for_values() {
-		let (package, _dir) = package(vec![], vec!["values.schema.json"]);
+	fn request_schema_for_input() {
+		let (package, _dir) = package(vec![], vec!["schema.json"]);
 
 		assert!(package.is_err());
 		assert_eq!(package.unwrap_err(), Error::NoSchema)
@@ -142,11 +142,11 @@ mod archive {
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
 
-		let values = helpers::values(&Fixture::contents("kcp/values.json"));
+		let input = helpers::json(&Fixture::contents("kcp/default.json"));
 
 		let compressed = package.archive(&PathBuf::from(cwd.path())).unwrap();
 		let package = Package::from_path(compressed).unwrap();
-		let compiled = package.compile(Some(values), None);
+		let compiled = package.compile(Some(input), None);
 
 		assert!(compiled.is_ok());
 	}
@@ -155,14 +155,14 @@ mod archive {
 mod compile {
 	use super::*;
 
-	mod values {
+	mod input {
 		use super::*;
 
 		#[test]
 		fn renders_with_null() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.values")],
-				vec!["values.json", "values.schema.json"],
+				vec![("templates/main.jsonnet", "_.input")],
+				vec!["default.json", "schema.json"],
 			);
 			let package = package.unwrap();
 
@@ -172,33 +172,33 @@ mod compile {
 		}
 
 		#[test]
-		fn renders_with_default_values() {
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.values")], vec![]);
+		fn renders_with_default_input() {
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.input")], vec![]);
 			let package = package.unwrap();
 
-			let values = helpers::values(&Fixture::contents("kcp/values.json"));
+			let input = helpers::json(&Fixture::contents("kcp/default.json"));
 
 			let rendered = package.compile(None, None);
 
-			assert_eq!(rendered.unwrap(), values);
+			assert_eq!(rendered.unwrap(), input);
 		}
 
 		#[test]
-		fn merges_values_with_defaults() {
-			let defaults = helpers::values(&Fixture::contents("kcp/values.json"));
-			let values: Value = helpers::values(
+		fn merges_input_with_defaults() {
+			let defaults = helpers::json(&Fixture::contents("kcp/default.json"));
+			let input: Value = helpers::json(
 				r#"{ "database": { "port": 5432, "credentials": { "user": "admin", "pass": "admin" } } }"#,
 			);
 			let merged = {
 				let mut merged = defaults;
-				json::merge(&mut merged, &values);
+				json::merge(&mut merged, &input);
 				merged
 			};
 
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.values")], vec![]);
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.input")], vec![]);
 			let package = package.unwrap();
 
-			let rendered = package.compile(Some(values), None);
+			let rendered = package.compile(Some(input), None);
 
 			assert_eq!(rendered.unwrap(), merged);
 		}
@@ -213,7 +213,7 @@ mod compile {
 			let (package, _dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"function(values = null, files = null) { values: values }",
+					"function(input = null, files = null) { input: input }",
 				)],
 				vec![],
 			);
@@ -233,35 +233,32 @@ mod compile {
 				vec![
 					(
 						"templates/main.jsonnet",
-						"local valid = import './values/entry.jsonnet'; valid",
+						"local valid = import './input/entry.jsonnet'; valid",
 					),
-					(
-						"templates/values/entry.jsonnet",
-						"import '../values.jsonnet'",
-					),
-					("templates/values.jsonnet", "_.values"),
+					("templates/input/entry.jsonnet", "import '../input.jsonnet'"),
+					("templates/input.jsonnet", "_.input"),
 				],
 				vec![],
 			);
 			let package = package.unwrap();
-			let values = package.values.clone().unwrap();
+			let input = package.default.clone().unwrap();
 
 			let rendered = package.compile(None, None);
 
-			assert_eq!(rendered.unwrap(), values);
+			assert_eq!(rendered.unwrap(), input);
 		}
 
 		#[test]
-		#[should_panic(expected = "can't resolve values.jsonnet")]
+		#[should_panic(expected = "can't resolve input.jsonnet")]
 		fn doesnt_include_templates_on_imports() {
 			let (package, _dir) = package(
 				vec![
 					(
 						"templates/main.jsonnet",
-						"local valid = import './values/entry.jsonnet'; valid",
+						"local valid = import './input/entry.jsonnet'; valid",
 					),
-					("templates/values/entry.jsonnet", "import 'values.jsonnet'"),
-					("templates/values.jsonnet", "_.values"),
+					("templates/input/entry.jsonnet", "import 'input.jsonnet'"),
+					("templates/input.jsonnet", "_.input"),
 				],
 				vec![],
 			);
@@ -283,16 +280,16 @@ mod compile {
 						"templates/main.jsonnet",
 						"local valid = import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'; valid",
 					),
-					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.values"),
+					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.input"),
 				],
 				vec![],
 			);
 			let package = package.unwrap();
-			let values = package.values.clone().unwrap();
+			let input = package.default.clone().unwrap();
 
 			let rendered = package.compile(None, None);
 
-			assert_eq!(rendered.unwrap(), values);
+			assert_eq!(rendered.unwrap(), input);
 		}
 
 		#[test]
@@ -303,7 +300,7 @@ mod compile {
 						"templates/main.jsonnet",
 						"local valid = import 'k.libjsonnet'; valid",
 					),
-					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.values"),
+					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.input"),
 					(
 						"lib/k.libjsonnet",
 						"import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'",
@@ -312,11 +309,11 @@ mod compile {
 				vec![],
 			);
 			let package = package.unwrap();
-			let values = package.values.clone().unwrap();
+			let input = package.default.clone().unwrap();
 
 			let rendered = package.compile(None, None);
 
-			assert_eq!(rendered.unwrap(), values);
+			assert_eq!(rendered.unwrap(), input);
 		}
 	}
 
@@ -330,10 +327,9 @@ mod compile {
 				vec![],
 			);
 			let package = package.unwrap();
-			let values = package.values.clone().unwrap();
+			let input = package.default.clone().unwrap();
 
-			let template =
-				helpers::template(&Fixture::contents("kcp/files/database.toml"), &values);
+			let template = helpers::template(&Fixture::contents("kcp/files/database.toml"), &input);
 			let rendered = package.compile(None, None);
 
 			assert_eq!(rendered.unwrap(), Value::String(template));
@@ -346,14 +342,12 @@ mod compile {
 				vec![],
 			);
 			let package = package.unwrap();
-			let values = package.values.clone().unwrap();
+			let input = package.default.clone().unwrap();
 
 			let db_template =
-				helpers::template(&Fixture::contents("kcp/files/database.toml"), &values);
-			let evt_template = helpers::template(
-				&Fixture::contents("kcp/files/events/settings.toml"),
-				&values,
-			);
+				helpers::template(&Fixture::contents("kcp/files/database.toml"), &input);
+			let evt_template =
+				helpers::template(&Fixture::contents("kcp/files/events/settings.toml"), &input);
 
 			let rendered = package.compile(None, None);
 
@@ -384,10 +378,10 @@ mod compile {
 		}
 
 		#[test]
-		fn compiles_templates_with_empty_values() {
+		fn compiles_templates_with_empty_input() {
 			let (package, _dir) = package(
 				vec![("templates/main.jsonnet", "_.files('no-params.txt')")],
-				vec!["values.json", "values.schema.json"],
+				vec!["default.json", "schema.json"],
 			);
 			let package = package.unwrap();
 
@@ -467,7 +461,7 @@ mod compile {
 			let json = format!(r#"{{ "name": "{0}" }}"#, release.name);
 			let rendered = package.compile(None, Some(release));
 
-			let result = helpers::values(&json);
+			let result = helpers::json(&json);
 
 			assert_eq!(rendered.unwrap(), result);
 		}
@@ -487,7 +481,7 @@ mod compile {
 			);
 			let rendered = package.compile(None, None);
 
-			let result = helpers::values(&json);
+			let result = helpers::json(&json);
 
 			assert_eq!(rendered.unwrap(), result);
 		}
@@ -528,31 +522,31 @@ mod compile {
 		#[test]
 		fn are_rendered_with_include() {
 			let (root, dir) = package(
-				vec![("templates/main.jsonnet", "_.include('sub', _.values)")],
+				vec![("templates/main.jsonnet", "_.include('sub', _.input)")],
 				vec![],
 			);
 			let _archive = subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "_.values")],
+				vec![("templates/main.jsonnet", "_.input")],
 				vec![],
 			);
 			let package = root.unwrap();
 
 			let rendered = package.compile(None, None);
 
-			let result = helpers::values(&Fixture::contents("kcp/values.json"));
+			let result = helpers::json(&Fixture::contents("kcp/default.json"));
 
 			assert_eq!(rendered.unwrap(), result);
 		}
 
 		// NOTE: As subpackages are supposed to be archived packages, we don't
 		// need to validate all the same cases as we do for packages. This test
-		// is usefull to guarantee that we pass the correct values while
+		// is usefull to guarantee that we pass the correct input while
 		// compiling the subpackage, not to check the realm of invalid packages
 		#[test]
-		#[should_panic(expected = "values provided don't match the schema")]
-		fn validate_values() {
+		#[should_panic(expected = "input provided doesn't match the schema")]
+		fn validate_input() {
 			let (root, dir) = package(
 				vec![(
 					"templates/main.jsonnet",
@@ -563,7 +557,7 @@ mod compile {
 			let _archive = subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "_.values")],
+				vec![("templates/main.jsonnet", "_.input")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -583,7 +577,7 @@ mod compile {
 				name: String::from(name),
 			};
 			let (root, dir) = package(
-				vec![("templates/main.jsonnet", "_.include('sub', _.values)")],
+				vec![("templates/main.jsonnet", "_.include('sub', _.input)")],
 				vec![],
 			);
 			let _archive = subpackage(

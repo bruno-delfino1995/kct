@@ -20,7 +20,7 @@ pub const FILES_PARAM: &str = "files";
 pub const INCLUDE_PARAM: &str = "include";
 pub const PACKAGE_PARAM: &str = "package";
 pub const RELEASE_PARAM: &str = "release";
-pub const VALUES_PARAM: &str = "values";
+pub const INPUT_PARAM: &str = "input";
 pub const TEMPLATES_FOLDER: &str = "files";
 pub const SUBPACKAGES_FOLDER: &str = "kcps";
 pub const GLOBAL_VARIABLE: &str = "_";
@@ -30,7 +30,7 @@ pub struct Release {
 	pub name: String,
 }
 
-pub fn compile(pkg: Package, values: Value, release: Option<Release>) -> Result<Value> {
+pub fn compile(pkg: Package, input: Value, release: Option<Release>) -> Result<Value> {
 	let state = create_state(&pkg);
 
 	let render_issue = |err: LocError| {
@@ -46,7 +46,7 @@ pub fn compile(pkg: Package, values: Value, release: Option<Release>) -> Result<
 
 	state.settings_mut().globals.insert(
 		GLOBAL_VARIABLE.into(),
-		create_global(&pkg, &values, &release),
+		create_global(&pkg, &input, &release),
 	);
 
 	let parsed = state.evaluate_file_raw(&pkg.main).map_err(render_issue)?;
@@ -88,10 +88,10 @@ fn create_state(pkg: &Package) -> EvaluationState {
 	state
 }
 
-fn create_global(pkg: &Package, values: &Value, release: &Option<Release>) -> Val {
-	let files = file::create_function(pkg, values);
+fn create_global(pkg: &Package, input: &Value, release: &Option<Release>) -> Val {
+	let files = file::create_function(pkg, input);
 	let include = subpackage::create_function(pkg, release);
-	let values = Val::from(values);
+	let input = Val::from(input);
 	let package = {
 		let mut map = Map::<String, Value>::new();
 		map.insert(String::from("name"), Value::String(pkg.spec.name.clone()));
@@ -126,7 +126,7 @@ fn create_global(pkg: &Package, values: &Value, release: &Option<Release>) -> Va
 		(FILES_PARAM, files),
 		(PACKAGE_PARAM, package),
 		(RELEASE_PARAM, release),
-		(VALUES_PARAM, values),
+		(INPUT_PARAM, input),
 		(INCLUDE_PARAM, include),
 	];
 

@@ -6,7 +6,7 @@
 	},
 	type: 'Opaque',
 	data: {
-		values: _.values,
+		input: _.input,
 		package: _.package,
 		release: _.release,
 		files: {

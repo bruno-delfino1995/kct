@@ -10,14 +10,14 @@ pub enum Error {
 	NoSpec,
 	#[error("Invalid package file")]
 	InvalidSpec,
-	#[error("No schema file to validate your values")]
+	#[error("No schema file to validate your input")]
 	NoSchema,
 	#[error("Invalid schema file")]
 	InvalidSchema,
-	#[error("No values where provided")]
-	NoValues,
-	#[error("The values provided don't match the schema")]
-	InvalidValues,
+	#[error("No input was provided")]
+	NoInput,
+	#[error("The input provided doesn't match the schema")]
+	InvalidInput,
 	#[error("An error happened while rendering your templates: {0}")]
 	RenderIssue(String),
 	#[error("Your template couldn't be parsed as JSON")]

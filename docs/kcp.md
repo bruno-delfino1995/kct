@@ -13,15 +13,15 @@ kcp[.tgz]/
 ├── kcp.json            # manifest file
 ├── templates/          # directory for your Jsonnet templates
 │   └── main.jsonnet    # compilation entrypoint
-├── values.json         # OPTIONAL: default values
-├── values.schema.json  # OPTIONAL: schema to validate your values
+├── default.json        # OPTIONAL: default input
+├── schema.json         # OPTIONAL: schema to validate your inputs
 ├── lib/                # OPTIONAL: aliases or internal libs
 ├── vendor/             # OPTIONAL: external libs managed by Jsonnet Bundler
 └── files/              # OPTIONAL: files to be compiled by Tera
 └── kcps/               # OPTIONAL: subpackages that you can include
 ```
 
-The minimal structure consists of the manifest file (`kcp.json`) and the compilation entrypoint (`templates/main.jsonnet`). For values we have `values.schema.json` and `values.json` as mutual dependents. For libraries, there're `vendor` and `lib` mirroring the concepts from [Tanka](https://tanka.dev/libraries/import-paths). For general files, a name borrowed from [Helm](https://helm.sh/docs/chart_template_guide/accessing_files/#helm), that you might want to include, there's the `files` directory; however, differently from Helm, these are rendered by [Tera](https://tera.netlify.app/docs). And finally, there's the `kcps` directory which contains the packages declared in your manifest as dependencies
+The minimal structure consists of the manifest file (`kcp.json`) and the compilation entrypoint (`templates/main.jsonnet`). For inputs we have `schema.json` and `default.json` as mutual dependents. For libraries, there're `vendor` and `lib` mirroring the concepts from [Tanka](https://tanka.dev/libraries/import-paths). For general files, a name borrowed from [Helm](https://helm.sh/docs/chart_template_guide/accessing_files/#helm), that you might want to include, there's the `files` directory; however, differently from Helm, these are rendered by [Tera](https://tera.netlify.app/docs). And finally, there's the `kcps` directory which contains the packages declared in your manifest as dependencies
 
 To have a better grasp of the structure and features, take a look at the [example package][example-kcp] that we use for testing
 
@@ -51,9 +51,9 @@ You might be wondering, what about Jsonnet dependencies? For this job we recomme
 
 To aid developers with external info and utilities, we inject the `_` global into your templates. Within this global each property fulfills a specific purpose. The global structure consists of:
 
-- `values`: injected values that are the result of merging your defaults with values provided during compilation
+- `input`: injected input that are the result of merging your defaults with inputs provided during compilation
 - `files`: a function that receives a blob and will return a list with the contents of rendered files
-- `include`: a function that receives a package name and an object for values and will return the rendered subpackage
+- `include`: a function that receives a package name and an object for input and will return the rendered subpackage
 - `package`: information about your package that can help you scope your resources
 	- `name`: the package names as in the manifest file
 	- `fullName`: your package name prefixed by the release name - use this as your prefix in the templates

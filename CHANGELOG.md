@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - allows multiple occurrences of `input`
 
+### Changed
+
+- change from `_.values` to `_.input` on injected global
+- expect `schema.json` instead of `values.schema.json`
+- read `default.json` instead of `values.json` for defaults
+
 ### Fixed
 
 - fix missing conversion from `values` to `input`

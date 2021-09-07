@@ -10,7 +10,7 @@ use std::rc::Rc;
 pub fn create_function(pkg: &Package, release: &Option<Release>) -> Val {
 	let params = ParamsDesc(Rc::new(vec![
 		Param("name".into(), None),
-		Param("values".into(), None),
+		Param("input".into(), None),
 	]));
 
 	let root = pkg.root.clone().join(SUBPACKAGES_FOLDER);
@@ -31,13 +31,13 @@ pub fn create_function(pkg: &Package, release: &Option<Release>) -> Val {
 		let package = Package::from_path(root)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.to_string().into())))?;
 
-		let values: Option<Value> = params
+		let input: Option<Value> = params
 			.get(1)
 			.map(|val| val.to_string().unwrap())
 			.map(|val| serde_json::from_str(&val).unwrap());
 
 		let rendered = package
-			.compile(values, release.clone())
+			.compile(input, release.clone())
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.to_string().into())))?;
 
 		Ok(Val::from(&rendered))

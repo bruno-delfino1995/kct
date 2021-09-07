@@ -11,11 +11,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tera::{Context, Tera};
 
-pub fn create_function(pkg: &Package, values: &Value) -> Val {
+pub fn create_function(pkg: &Package, input: &Value) -> Val {
 	let params = ParamsDesc(Rc::new(vec![Param("name".into(), None)]));
 
 	let root = pkg.root.clone();
-	let values = values.clone();
+	let input = input.clone();
 	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
 		let file = match name {
@@ -27,7 +27,7 @@ pub fn create_function(pkg: &Package, values: &Value) -> Val {
 			}
 		};
 
-		let compiled = compile_template(&root, file, &values)
+		let compiled = compile_template(&root, file, &input)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))?;
 
 		if compiled.is_empty() {
@@ -56,7 +56,7 @@ pub fn create_function(pkg: &Package, values: &Value) -> Val {
 fn compile_template(
 	root: &Path,
 	glob: &str,
-	values: &Value,
+	input: &Value,
 ) -> std::result::Result<Vec<String>, String> {
 	let mut templates_dir = root.to_path_buf();
 	templates_dir.push(TEMPLATES_FOLDER);
@@ -83,9 +83,9 @@ fn compile_template(
 		.collect::<std::result::Result<_, _>>()
 		.map_err(|err| format!("Unable to read templates: {}", err))?;
 
-	let context = match values {
+	let context = match input {
 		Value::Null => Context::from_serialize(Value::Object(Map::new())).unwrap(),
-		_ => Context::from_serialize(values).unwrap(),
+		_ => Context::from_serialize(input).unwrap(),
 	};
 
 	let compiled: Vec<String> = contents

@@ -14,9 +14,9 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-const SCHEMA_FILE: &str = "values.schema.json";
+const SCHEMA_FILE: &str = "schema.json";
 const SPEC_FILE: &str = "kcp.json";
-const VALUES_FILE: &str = "values.json";
+const DEFAULT_FILE: &str = "default.json";
 const MAIN_FILE: &str = "templates/main.jsonnet";
 
 #[derive(Debug)]
@@ -25,7 +25,7 @@ pub struct Package {
 	pub main: PathBuf,
 	pub spec: Spec,
 	pub schema: Option<Schema>,
-	pub values: Option<Value>,
+	pub default: Option<Value>,
 	pub brownfield: Option<TempDir>,
 }
 
@@ -67,13 +67,13 @@ impl Package {
 			}
 		};
 
-		let values = {
+		let default = {
 			let mut path = root.clone();
-			path.push(VALUES_FILE);
+			path.push(DEFAULT_FILE);
 
 			if path.exists() {
-				let contents = io::from_file(&path).map_err(|_err| Error::InvalidValues)?;
-				Some(serde_json::from_str(&contents).map_err(|_err| Error::InvalidValues)?)
+				let contents = io::from_file(&path).map_err(|_err| Error::InvalidInput)?;
+				Some(serde_json::from_str(&contents).map_err(|_err| Error::InvalidInput)?)
 			} else {
 				None
 			}
@@ -90,14 +90,14 @@ impl Package {
 			}
 		};
 
-		validate_values(&schema, &values)?;
+		validate_input(&schema, &default)?;
 
 		Ok(Package {
 			root,
 			main,
 			spec,
 			schema,
-			values,
+			default,
 			brownfield,
 		})
 	}
@@ -110,36 +110,36 @@ impl Package {
 		archive::archive(&name, &self.root, dest)
 	}
 
-	pub fn compile(self, values: Option<Value>, release: Option<Release>) -> Result<Value> {
-		let values = match (&self.values, &values) {
-			(Some(defaults), Some(values)) => {
-				let mut merged = defaults.to_owned();
-				json::merge(&mut merged, values);
+	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
+		let input = match (&self.default, &input) {
+			(Some(default), Some(input)) => {
+				let mut merged = default.to_owned();
+				json::merge(&mut merged, input);
 
 				Some(merged)
 			}
-			(None, Some(values)) => Some(values.to_owned()),
-			(Some(defaults), None) => Some(defaults.to_owned()),
+			(None, Some(input)) => Some(input.to_owned()),
+			(Some(default), None) => Some(default.to_owned()),
 			_ => None,
 		};
 
-		validate_values(&self.schema, &values)?;
+		validate_input(&self.schema, &input)?;
 
-		compile::compile(self, values.unwrap_or(Value::Null), release)
+		compile::compile(self, input.unwrap_or(Value::Null), release)
 	}
 }
 
-fn validate_values(schema: &Option<Schema>, values: &Option<Value>) -> Result<()> {
-	let (schema, values) = match (&schema, &values) {
+fn validate_input(schema: &Option<Schema>, input: &Option<Value>) -> Result<()> {
+	let (schema, input) = match (&schema, &input) {
 		(None, None) => return Ok(()),
 		(None, Some(_)) => return Err(Error::NoSchema),
-		(Some(_), None) => return Err(Error::NoValues),
-		(Some(schema), Some(value)) => (schema, value),
+		(Some(_), None) => return Err(Error::NoInput),
+		(Some(schema), Some(input)) => (schema, input),
 	};
 
-	if values.is_object() && schema.validate(values) {
+	if input.is_object() && schema.validate(input) {
 		Ok(())
 	} else {
-		Err(Error::InvalidValues)
+		Err(Error::InvalidInput)
 	}
 }
