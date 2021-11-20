@@ -5,7 +5,7 @@ use jrsonnet_evaluator::{
 };
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;
-use std::rc::Rc;
+use std::{convert::TryFrom, rc::Rc};
 
 pub fn create_function(pkg: &Package, release: &Option<Release>) -> Val {
 	let params = ParamsDesc(Rc::new(vec![
@@ -28,7 +28,7 @@ pub fn create_function(pkg: &Package, release: &Option<Release>) -> Val {
 		let mut root = root.join(&package.to_string());
 		root.set_extension("tgz");
 
-		let package = Package::from_path(root)
+		let package = Package::try_from(root)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.to_string().into())))?;
 
 		let input: Option<Value> = params

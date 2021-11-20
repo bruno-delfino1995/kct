@@ -2,6 +2,7 @@ use super::{Error, Result};
 use kct_helper::io;
 use semver::Version;
 use serde_json::Value;
+use std::convert::TryFrom;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -10,8 +11,10 @@ pub struct Spec {
 	pub version: Version,
 }
 
-impl Spec {
-	pub fn from_path(path: PathBuf) -> Result<Spec> {
+impl TryFrom<PathBuf> for Spec {
+	type Error = Error;
+
+	fn try_from(path: PathBuf) -> Result<Spec> {
 		match io::from_file(&path) {
 			Ok(contents) => {
 				let json: Value =

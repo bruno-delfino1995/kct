@@ -6,6 +6,7 @@ use kct_helper::json::merge;
 use kct_kube::Filter;
 use kct_package::{Package, Release};
 use serde_json::{Map, Value};
+use std::convert::TryFrom;
 use std::env;
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -68,7 +69,7 @@ pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	let output = ensure_output_exists(&output)?;
 
 	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
-	let package = Package::from_path(package_from)?;
+	let package = Package::try_from(package_from)?;
 
 	let release = matches.value_of("release").map(|name| Release {
 		name: String::from(name),

@@ -11,6 +11,7 @@ use self::spec::Spec;
 pub use compile::Release;
 use kct_helper::{io, json};
 use serde_json::Value;
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
@@ -29,9 +30,10 @@ pub struct Package {
 	pub brownfield: Option<TempDir>,
 }
 
-/// Associated functions
-impl Package {
-	pub fn from_path(root: PathBuf) -> Result<Self> {
+impl TryFrom<PathBuf> for Package {
+	type Error = Error;
+
+	fn try_from(root: PathBuf) -> Result<Self> {
 		let (root, brownfield) = match root.extension() {
 			None => (root, None),
 			Some(_) => {
@@ -50,7 +52,7 @@ impl Package {
 			path.push(SPEC_FILE);
 
 			if path.exists() {
-				Spec::from_path(path)?
+				Spec::try_from(path)?
 			} else {
 				return Err(Error::NoSpec);
 			}
@@ -61,7 +63,7 @@ impl Package {
 			path.push(SCHEMA_FILE);
 
 			if path.exists() {
-				Some(Schema::from_path(path)?)
+				Some(Schema::try_from(path)?)
 			} else {
 				None
 			}

@@ -1,6 +1,7 @@
 use clap::ArgMatches;
 use clap::{App, Arg, SubCommand};
 use kct_package::Package;
+use std::convert::TryFrom;
 use std::error::Error;
 use std::path::PathBuf;
 
@@ -17,7 +18,7 @@ pub fn command() -> App<'static, 'static> {
 
 pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
 	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
-	let package = Package::from_path(package_from)?;
+	let package = Package::try_from(package_from)?;
 
 	let cwd = std::env::current_dir()?;
 	let compressed_path = package.archive(&cwd)?;

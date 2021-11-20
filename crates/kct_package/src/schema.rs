@@ -1,6 +1,7 @@
 use super::{Error, Result};
 use kct_helper::io;
 use serde_json::Value;
+use std::convert::TryFrom;
 use std::path::PathBuf;
 use url::Url;
 use valico::json_schema::Scope;
@@ -11,9 +12,10 @@ pub struct Schema {
 	id: Url,
 }
 
-/// Associated functions
-impl Schema {
-	pub fn new(schema: Value) -> Result<Self> {
+impl TryFrom<Value> for Schema {
+	type Error = Error;
+
+	fn try_from(schema: Value) -> Result<Self> {
 		let mut scope = Scope::new();
 		let id = scope
 			.compile(schema, false)
@@ -21,14 +23,18 @@ impl Schema {
 
 		Ok(Schema { scope, id })
 	}
+}
 
-	pub fn from_path(path: PathBuf) -> Result<Self> {
+impl TryFrom<PathBuf> for Schema {
+	type Error = Error;
+
+	fn try_from(path: PathBuf) -> Result<Self> {
 		match io::from_file(&path) {
 			Ok(contents) => {
 				let schema: Value =
 					serde_json::from_str(&contents).map_err(|_err| Error::InvalidSchema)?;
 
-				let schema = Self::new(schema)?;
+				let schema = Self::try_from(schema)?;
 
 				Ok(schema)
 			}

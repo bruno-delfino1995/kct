@@ -5,6 +5,7 @@ use fixtures::Fixture;
 use kct_helper::json;
 use kct_package::{error::Error, Package, Release};
 use serde_json::{Map, Value};
+use std::convert::TryFrom;
 use std::fs;
 use std::panic::panic_any;
 use std::path::PathBuf;
@@ -45,12 +46,12 @@ fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Erro
 		}
 	}
 
-	let package = Package::from_path(PathBuf::from(dir.path()));
+	let package = Package::try_from(PathBuf::from(dir.path()));
 
 	(package, dir)
 }
 
-mod from_path {
+mod try_from {
 	use super::*;
 
 	#[test]
@@ -67,7 +68,7 @@ mod from_path {
 		let package = package.unwrap();
 		let archive = package.archive(&PathBuf::from(cwd.path())).unwrap();
 
-		let package = Package::from_path(archive);
+		let package = Package::try_from(archive);
 
 		assert!(package.is_ok())
 	}
@@ -145,7 +146,7 @@ mod archive {
 		let input = helpers::json(&Fixture::contents("kcp/default.json"));
 
 		let compressed = package.archive(&PathBuf::from(cwd.path())).unwrap();
-		let package = Package::from_path(compressed).unwrap();
+		let package = Package::try_from(compressed).unwrap();
 		let compiled = package.compile(Some(input), None);
 
 		assert!(compiled.is_ok());
