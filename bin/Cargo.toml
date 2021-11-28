@@ -1,7 +1,7 @@
 [package]
 name = "kct"
 version = "0.3.1"
-edition = "2018"
+edition = "2021"
 authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
 description = "Kubernetes Configuration Tool"
 repository = "https://github.com/bruno-delfino1995/kct"
