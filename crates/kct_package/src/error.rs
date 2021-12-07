@@ -14,6 +14,10 @@ pub enum Error {
 	NoSchema,
 	#[error("Invalid schema file")]
 	InvalidSchema,
+	#[error("No example file")]
+	NoExample,
+	#[error("Invalid example file")]
+	InvalidExample,
 	#[error("No input was provided")]
 	NoInput,
 	#[error("The input provided doesn't match the schema")]

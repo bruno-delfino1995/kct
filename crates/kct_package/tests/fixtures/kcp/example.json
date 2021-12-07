@@ -1,6 +1,7 @@
 {
 	"database": {
 		"host": "postgres",
+		"port": 5432,
 		"credentials": {
 			"user": "user",
 			"pass": "pass"

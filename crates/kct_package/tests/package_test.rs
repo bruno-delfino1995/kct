@@ -2,7 +2,6 @@ mod fixtures;
 mod helpers;
 
 use fixtures::Fixture;
-use kct_helper::json;
 use kct_package::{error::Error, Package, Release};
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
@@ -51,6 +50,12 @@ fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Erro
 	(package, dir)
 }
 
+fn compile_with_example(pkg: Package, rel: Option<Release>) -> Result<Value, Error> {
+	let input = pkg.example.clone().unwrap();
+
+	pkg.compile(Some(input), rel)
+}
+
 mod try_from {
 	use super::*;
 
@@ -82,11 +87,11 @@ mod try_from {
 	}
 
 	#[test]
-	fn requests_input_for_schema() {
-		let (package, _dir) = package(vec![], vec!["default.json"]);
+	fn requests_example_for_schema() {
+		let (package, _dir) = package(vec![], vec!["example.json"]);
 
 		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoInput)
+		assert_eq!(package.unwrap_err(), Error::NoExample)
 	}
 
 	#[test]
@@ -95,6 +100,14 @@ mod try_from {
 
 		assert!(package.is_err());
 		assert_eq!(package.unwrap_err(), Error::NoSchema)
+	}
+
+	#[test]
+	fn example_should_be_valid_input() {
+		let (package, _dir) = package(vec![("example.json", r#"{"nothing": "none"}"#)], vec![]);
+
+		assert!(package.is_err());
+		assert_eq!(package.unwrap_err(), Error::InvalidExample);
 	}
 
 	#[test]
@@ -143,11 +156,9 @@ mod archive {
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
 
-		let input = helpers::json(&Fixture::contents("kcp/default.json"));
-
 		let compressed = package.archive(&PathBuf::from(cwd.path())).unwrap();
 		let package = Package::try_from(compressed).unwrap();
-		let compiled = package.compile(Some(input), None);
+		let compiled = compile_with_example(package, None);
 
 		assert!(compiled.is_ok());
 	}
@@ -163,7 +174,7 @@ mod compile {
 		fn renders_with_null() {
 			let (package, _dir) = package(
 				vec![("templates/main.jsonnet", "_.input")],
-				vec!["default.json", "schema.json"],
+				vec!["example.json", "schema.json"],
 			);
 			let package = package.unwrap();
 
@@ -173,35 +184,17 @@ mod compile {
 		}
 
 		#[test]
-		fn renders_with_default_input() {
+		fn doesnt_merge_input_with_defaults() {
+			let input: Value = helpers::json(
+				r#"{ "database": { "port": 5432, "host": "localhost", "credentials": { "user": "admin", "pass": "admin" } } }"#,
+			);
+
 			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.input")], vec![]);
 			let package = package.unwrap();
 
-			let input = helpers::json(&Fixture::contents("kcp/default.json"));
-
-			let rendered = package.compile(None, None);
+			let rendered = package.compile(Some(input.clone()), None);
 
 			assert_eq!(rendered.unwrap(), input);
-		}
-
-		#[test]
-		fn merges_input_with_defaults() {
-			let defaults = helpers::json(&Fixture::contents("kcp/default.json"));
-			let input: Value = helpers::json(
-				r#"{ "database": { "port": 5432, "credentials": { "user": "admin", "pass": "admin" } } }"#,
-			);
-			let merged = {
-				let mut merged = defaults;
-				json::merge(&mut merged, &input);
-				merged
-			};
-
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.input")], vec![]);
-			let package = package.unwrap();
-
-			let rendered = package.compile(Some(input), None);
-
-			assert_eq!(rendered.unwrap(), merged);
 		}
 	}
 
@@ -218,9 +211,9 @@ mod compile {
 				)],
 				vec![],
 			);
-			let package = package.unwrap();
 
-			let rendered = package.compile(None, None).unwrap_err();
+			let package = package.unwrap();
+			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic_any(err),
@@ -241,10 +234,10 @@ mod compile {
 				],
 				vec![],
 			);
-			let package = package.unwrap();
-			let input = package.default.clone().unwrap();
 
-			let rendered = package.compile(None, None);
+			let package = package.unwrap();
+			let input = package.example.clone().unwrap();
+			let rendered = compile_with_example(package, None);
 
 			assert_eq!(rendered.unwrap(), input);
 		}
@@ -263,9 +256,9 @@ mod compile {
 				],
 				vec![],
 			);
-			let package = package.unwrap();
 
-			let rendered = package.compile(None, None).unwrap_err();
+			let package = package.unwrap();
+			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic_any(err),
@@ -285,10 +278,10 @@ mod compile {
 				],
 				vec![],
 			);
-			let package = package.unwrap();
-			let input = package.default.clone().unwrap();
 
-			let rendered = package.compile(None, None);
+			let package = package.unwrap();
+			let input = package.example.clone().unwrap();
+			let rendered = compile_with_example(package, None);
 
 			assert_eq!(rendered.unwrap(), input);
 		}
@@ -309,10 +302,10 @@ mod compile {
 				],
 				vec![],
 			);
-			let package = package.unwrap();
-			let input = package.default.clone().unwrap();
 
-			let rendered = package.compile(None, None);
+			let package = package.unwrap();
+			let input = package.example.clone().unwrap();
+			let rendered = compile_with_example(package, None);
 
 			assert_eq!(rendered.unwrap(), input);
 		}
@@ -328,10 +321,9 @@ mod compile {
 				vec![],
 			);
 			let package = package.unwrap();
-			let input = package.default.clone().unwrap();
-
+			let input = package.example.clone().unwrap();
 			let template = helpers::template(&Fixture::contents("kcp/files/database.toml"), &input);
-			let rendered = package.compile(None, None);
+			let rendered = package.compile(Some(input), None);
 
 			assert_eq!(rendered.unwrap(), Value::String(template));
 		}
@@ -343,14 +335,14 @@ mod compile {
 				vec![],
 			);
 			let package = package.unwrap();
-			let input = package.default.clone().unwrap();
+			let input = package.example.clone().unwrap();
 
 			let db_template =
 				helpers::template(&Fixture::contents("kcp/files/database.toml"), &input);
 			let evt_template =
 				helpers::template(&Fixture::contents("kcp/files/events/settings.toml"), &input);
 
-			let rendered = package.compile(None, None);
+			let rendered = compile_with_example(package, None);
 
 			assert_eq!(
 				rendered.unwrap(),
@@ -370,7 +362,7 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let rendered = package.compile(None, None).unwrap_err();
+			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic_any(err),
@@ -382,7 +374,7 @@ mod compile {
 		fn compiles_templates_with_empty_input() {
 			let (package, _dir) = package(
 				vec![("templates/main.jsonnet", "_.files('no-params.txt')")],
-				vec!["default.json", "schema.json"],
+				vec!["example.json", "schema.json"],
 			);
 			let package = package.unwrap();
 
@@ -402,7 +394,7 @@ mod compile {
 			let (package, _dir) = package(vec![], vec!["files"]);
 			let package = package.unwrap();
 
-			let rendered = package.compile(None, None).unwrap_err();
+			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic_any(err),
@@ -419,7 +411,7 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let rendered = package.compile(None, None).unwrap_err();
+			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic_any(err),
@@ -438,9 +430,8 @@ mod compile {
 			let package = package.unwrap();
 			let expected = format!("{}-{}", release_name, package.spec.name);
 
-			let rendered = package
-				.compile(
-					None,
+			let rendered = compile_with_example(
+					package,
 					Some(Release {
 						name: String::from(release_name),
 					}),
@@ -460,7 +451,7 @@ mod compile {
 			let package = package.unwrap();
 
 			let json = format!(r#"{{ "name": "{0}" }}"#, release.name);
-			let rendered = package.compile(None, Some(release));
+			let rendered = compile_with_example(package, Some(release));
 
 			let result = helpers::json(&json);
 
@@ -480,7 +471,7 @@ mod compile {
 				r#"{{ "name": "{0}", "fullName": "{1}", "version": "{2}" }}"#,
 				package.spec.name, package.spec.name, package.spec.version
 			);
-			let rendered = package.compile(None, None);
+			let rendered = compile_with_example(package, None);
 
 			let result = helpers::json(&json);
 
@@ -533,10 +524,9 @@ mod compile {
 				vec![],
 			);
 			let package = root.unwrap();
+			let rendered = compile_with_example(package, None);
 
-			let rendered = package.compile(None, None);
-
-			let result = helpers::json(&Fixture::contents("kcp/default.json"));
+			let result = helpers::json(&Fixture::contents("kcp/example.json"));
 
 			assert_eq!(rendered.unwrap(), result);
 		}
@@ -563,7 +553,7 @@ mod compile {
 			);
 			let package = root.unwrap();
 
-			let rendered = package.compile(None, None).unwrap_err();
+			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
 				Error::RenderIssue(err) => panic_any(err),
@@ -589,7 +579,7 @@ mod compile {
 			);
 			let package = root.unwrap();
 
-			let rendered = package.compile(None, Some(release)).unwrap();
+			let rendered = compile_with_example(package, Some(release)).unwrap();
 
 			let actual = rendered.get("name").unwrap().as_str().unwrap();
 			assert_eq!(actual, name);

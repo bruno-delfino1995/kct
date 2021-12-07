@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - change from `_.values` to `_.input` on injected global
 - expect `schema.json` instead of `values.schema.json`
 - read `default.json` instead of `values.json` for defaults
+- no more `default.json`, now there's only `example.json` to enforce explicit inputs
 
 ### Fixed
 

@@ -9,7 +9,7 @@ use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
 pub use compile::Release;
-use kct_helper::{io, json};
+use kct_helper::io;
 use serde_json::Value;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
@@ -17,7 +17,7 @@ use tempfile::TempDir;
 
 const SCHEMA_FILE: &str = "schema.json";
 const SPEC_FILE: &str = "kcp.json";
-const DEFAULT_FILE: &str = "default.json";
+const EXAMPLE_FILE: &str = "example.json";
 const MAIN_FILE: &str = "templates/main.jsonnet";
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub struct Package {
 	pub main: PathBuf,
 	pub spec: Spec,
 	pub schema: Option<Schema>,
-	pub default: Option<Value>,
+	pub example: Option<Value>,
 	pub brownfield: Option<TempDir>,
 }
 
@@ -69,13 +69,13 @@ impl TryFrom<PathBuf> for Package {
 			}
 		};
 
-		let default = {
+		let example = {
 			let mut path = root.clone();
-			path.push(DEFAULT_FILE);
+			path.push(EXAMPLE_FILE);
 
 			if path.exists() {
-				let contents = io::from_file(&path).map_err(|_err| Error::InvalidInput)?;
-				Some(serde_json::from_str(&contents).map_err(|_err| Error::InvalidInput)?)
+				let contents = io::from_file(&path).map_err(|_err| Error::InvalidExample)?;
+				Some(serde_json::from_str(&contents).map_err(|_err| Error::InvalidExample)?)
 			} else {
 				None
 			}
@@ -92,14 +92,20 @@ impl TryFrom<PathBuf> for Package {
 			}
 		};
 
-		validate_input(&schema, &default)?;
+		validate_input(&schema, &example).map_err(|err| {
+			match err {
+				Error::InvalidInput => Error::InvalidExample,
+				Error::NoInput => Error::NoExample,
+				err => err
+			}
+		})?;
 
 		Ok(Package {
 			root,
 			main,
 			spec,
 			schema,
-			default,
+			example,
 			brownfield,
 		})
 	}
@@ -113,18 +119,6 @@ impl Package {
 	}
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
-		let input = match (&self.default, &input) {
-			(Some(default), Some(input)) => {
-				let mut merged = default.to_owned();
-				json::merge(&mut merged, input);
-
-				Some(merged)
-			}
-			(None, Some(input)) => Some(input.to_owned()),
-			(Some(default), None) => Some(default.to_owned()),
-			_ => None,
-		};
-
 		validate_input(&self.schema, &input)?;
 
 		compile::compile(self, input.unwrap_or(Value::Null), release)
