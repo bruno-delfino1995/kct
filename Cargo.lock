@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "kct"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "clap",
  "flate2",
@@ -459,7 +459,7 @@ dependencies = [
 
 [[package]]
 name = "kct_helper"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde_json",
  "thiserror",
@@ -467,7 +467,7 @@ dependencies = [
 
 [[package]]
 name = "kct_kube"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lazy_static",
  "regex",
@@ -479,7 +479,7 @@ dependencies = [
 
 [[package]]
 name = "kct_package"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "flate2",
  "fs_extra",

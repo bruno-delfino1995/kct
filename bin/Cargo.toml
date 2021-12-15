@@ -1,6 +1,6 @@
 [package]
 name = "kct"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
 description = "Kubernetes Configuration Tool"
@@ -12,9 +12,9 @@ categories = ["command-line-utilities"]
 [dependencies]
 clap = "2.33.3"
 flate2 = "1.0.17"
-kct_helper = { path = "../crates/kct_helper", version = "^0.3.1"}
-kct_kube = { path = "../crates/kct_kube", version = "^0.3.1"}
-kct_package = { path = "../crates/kct_package", version = "^0.3.1"}
+kct_helper = { path = "../crates/kct_helper", version = "^0.4.0"}
+kct_kube = { path = "../crates/kct_kube", version = "^0.4.0"}
+kct_package = { path = "../crates/kct_package", version = "^0.4.0"}
 serde = "1.0.115"
 serde_json = "1.0"
 serde_yaml = "0.8"
