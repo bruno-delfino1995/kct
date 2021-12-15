@@ -3,12 +3,13 @@ pub mod schema;
 pub mod spec;
 
 mod archive;
-mod compile;
+mod compiler;
 
 use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
-pub use compile::Release;
+use compiler::Compiler;
+pub use compiler::Release;
 use kct_helper::io;
 use serde_json::Value;
 use std::convert::TryFrom;
@@ -92,12 +93,10 @@ impl TryFrom<PathBuf> for Package {
 			}
 		};
 
-		validate_input(&schema, &example).map_err(|err| {
-			match err {
-				Error::InvalidInput => Error::InvalidExample,
-				Error::NoInput => Error::NoExample,
-				err => err
-			}
+		validate_input(&schema, &example).map_err(|err| match err {
+			Error::InvalidInput => Error::InvalidExample,
+			Error::NoInput => Error::NoExample,
+			err => err,
 		})?;
 
 		Ok(Package {
@@ -118,10 +117,14 @@ impl Package {
 		archive::archive(&name, &self.root, dest)
 	}
 
+	pub(crate) fn validate_input(&self, input: &Option<Value>) -> Result<()> {
+		validate_input(&self.schema, input)
+	}
+
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
 		validate_input(&self.schema, &input)?;
 
-		compile::compile(self, input.unwrap_or(Value::Null), release)
+		Compiler::new(&self.root).compile(self, input.unwrap_or(Value::Null), release)
 	}
 }
 

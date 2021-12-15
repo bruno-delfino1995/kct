@@ -12,13 +12,12 @@ A KCP is any directory or `.tgz` file that inside has the following structure:
 kcp[.tgz]/
 ├── kcp.json            # manifest file
 ├── templates/          # directory for your Jsonnet templates
-│   └── main.jsonnet    # compilation entrypoint
+│   └── main.jsonnet    # compilation entrypoint
 ├── example.json        # OPTIONAL: example inputs
 ├── schema.json         # OPTIONAL: schema to validate your inputs
 ├── lib/                # OPTIONAL: aliases or internal libs
-├── vendor/             # OPTIONAL: external libs managed by Jsonnet Bundler
-├── files/              # OPTIONAL: files to be compiled by Tera
-└── kcps/               # OPTIONAL: subpackages that you can include
+├── vendor/             # OPTIONAL: external libs and subpackages managed by Jsonnet Bundler
+└── files/              # OPTIONAL: files to be compiled by Tera
 ```
 
 The minimal structure consists of the manifest file (`kcp.json`) and the compilation entrypoint (`templates/main.jsonnet`). For inputs we have `schema.json` and `example.json` as mutual dependents. For libraries, there're `vendor` and `lib` mirroring the concepts from [Tanka](https://tanka.dev/libraries/import-paths). For general files, a name borrowed from [Helm](https://helm.sh/docs/chart_template_guide/accessing_files/#helm), that you might want to include, there's the `files` directory; however, differently from Helm, these are rendered by [Tera](https://tera.netlify.app/docs). And finally, there's the `kcps` directory which contains the packages declared in your manifest as dependencies
@@ -34,16 +33,11 @@ As we're talking about Jsonnet and not Yamlnet, I've decided to use a simple JSO
 ```json
 {
 	"name": "kcp",
-	"version": "1.0.0",
-	"dependencies": {
-		"prometheus": { "version": "1.1.0", "path": "https://repo.com/packages/prometheus" }
-	}
+	"version": "1.0.0"
 }
 ```
 
-In this example, we've declared a package named `kcp` at version `1.0.0` which depends upon `prometheus` on `1.1.0` stored at `http://repo.com/packages/prometheus/prometheus_1.1.0.tgz`.
-
-You might be wondering, what about Jsonnet dependencies? For this job we recommend [Jsonnet Bundler](https://github.com/jsonnet-bundler/jsonnet-bundler). We wanted to refactor imports to have a mechanism alike Node.JS but this would break the existing libraries such as [ksonnet](https://github.com/ksonnet/ksonnet-lib) and [kausal](https://github.com/grafana/jsonnet-libs/tree/master/ksonnet-util).
+In this example, we've declared a package named `kcp` at version `1.0.0`. which depends upon `prometheus` on `1.1.0` stored at `http://repo.com/packages/prometheus` under tag `1.1.0`. For Jsonnet dependecies we use the Jsonnet Bundler, just declare it in your `jsonnetfile.json`. We've chosen to rely on Jsonnet Bundler at the beginning due to being a fairly used project and to validate our idea before having to implement a whole dependency system from scratch.
 
 <a name="built-in"></a>
 
@@ -52,8 +46,8 @@ You might be wondering, what about Jsonnet dependencies? For this job we recomme
 To aid developers with external info and utilities, we inject the `_` global into your templates. Within this global each property fulfills a specific purpose. The global structure consists of:
 
 - `input`: injected input that are the result of merging your defaults with inputs provided during compilation
-- `files`: a function that receives a blob and will return a list with the contents of rendered files
-- `include`: a function that receives a package name and an object for input and will return the rendered subpackage
+- `files`: function that receives a blob and will return a list with the contents of rendered files
+- `include`: function that receives a package name and an object for input and will return the rendered subpackage
 - `package`: information about your package that can help you scope your resources
 	- `name`: the package names as in the manifest file
 	- `fullName`: your package name prefixed by the release name - use this as your prefix in the templates

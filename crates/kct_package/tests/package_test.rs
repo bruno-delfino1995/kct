@@ -431,12 +431,12 @@ mod compile {
 			let expected = format!("{}-{}", release_name, package.spec.name);
 
 			let rendered = compile_with_example(
-					package,
-					Some(Release {
-						name: String::from(release_name),
-					}),
-				)
-				.unwrap();
+				package,
+				Some(Release {
+					name: String::from(release_name),
+				}),
+			)
+			.unwrap();
 			let actual = rendered.get("fullName").unwrap().as_str().unwrap();
 
 			assert_eq!(actual, expected);
@@ -482,33 +482,18 @@ mod compile {
 	mod subpackage {
 		use super::*;
 
-		fn subpackage(
-			dir: &TempDir,
-			name: &str,
-			with: Vec<(&str, &str)>,
-			without: Vec<&str>,
-		) -> PathBuf {
-			let (package, _dir) = package(with, without);
-			let package = package.unwrap();
+		fn subpackage(dir: &TempDir, name: &str, with: Vec<(&str, &str)>, without: Vec<&str>) {
+			use fs_extra::dir::{create_all, move_dir, CopyOptions};
+			let (_package, source) = package(with, without);
 
-			let archive = {
-				let path = dir.path().join("kcps");
-				fs::create_dir(&path).unwrap();
+			let path = dir.path().join("vendor").join(name);
+			create_all(&path, true)
+				.expect("Failed to create subpackage directory as vendor of parent");
 
-				package.archive(&path).unwrap()
-			};
-
-			let at = {
-				let mut sub = archive.clone();
-				sub.set_file_name(name);
-				sub.set_extension("tgz");
-
-				sub
-			};
-
-			fs::rename(&archive, &at).unwrap();
-
-			at
+			let mut options = CopyOptions::new();
+			options.content_only = true;
+			move_dir(source.into_path(), path, &options)
+				.expect("Failed to move subpackage into parent");
 		}
 
 		#[test]
@@ -517,7 +502,7 @@ mod compile {
 				vec![("templates/main.jsonnet", "_.include('sub', _.input)")],
 				vec![],
 			);
-			let _archive = subpackage(
+			subpackage(
 				&dir,
 				"sub",
 				vec![("templates/main.jsonnet", "_.input")],
@@ -531,7 +516,7 @@ mod compile {
 			assert_eq!(rendered.unwrap(), result);
 		}
 
-		// NOTE: As subpackages are supposed to be archived packages, we don't
+		// NOTE: As subpackages are supposed to be normal packages, we don't
 		// need to validate all the same cases as we do for packages. This test
 		// is usefull to guarantee that we pass the correct input while
 		// compiling the subpackage, not to check the realm of invalid packages
@@ -583,6 +568,33 @@ mod compile {
 
 			let actual = rendered.get("name").unwrap().as_str().unwrap();
 			assert_eq!(actual, name);
+		}
+
+		#[test]
+		fn can_render_own_subpackages() {
+			let contents = r#"{"omae_wha": "mou shindeiru"}"#;
+			let (root, dir) = package(
+				vec![("templates/main.jsonnet", "_.include('dep', _.input)")],
+				vec![],
+			);
+			subpackage(
+				&dir,
+				"dep",
+				vec![("templates/main.jsonnet", "_.include('transient', _.input)")],
+				vec![],
+			);
+			subpackage(
+				&dir,
+				"transient",
+				vec![("templates/main.jsonnet", contents)],
+				vec![],
+			);
+			let package = root.unwrap();
+			let rendered = compile_with_example(package, None);
+
+			let result = helpers::json(contents);
+
+			assert_eq!(rendered.unwrap(), result);
 		}
 	}
 }
