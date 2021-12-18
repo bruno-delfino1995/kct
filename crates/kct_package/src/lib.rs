@@ -14,7 +14,6 @@ use kct_helper::io;
 use serde_json::Value;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
-use tempfile::TempDir;
 
 const SCHEMA_FILE: &str = "schema.json";
 const SPEC_FILE: &str = "kcp.json";
@@ -28,26 +27,12 @@ pub struct Package {
 	pub spec: Spec,
 	pub schema: Option<Schema>,
 	pub example: Option<Value>,
-	pub brownfield: Option<TempDir>,
 }
 
 impl TryFrom<PathBuf> for Package {
 	type Error = Error;
 
 	fn try_from(root: PathBuf) -> Result<Self> {
-		let (root, brownfield) = match root.extension() {
-			None => (root, None),
-			Some(_) => {
-				let brownfield = TempDir::new()
-					.expect("Unable to create temporary directory to unpack your KCP");
-				let unarchived = PathBuf::from(brownfield.path());
-
-				archive::unarchive(&root, &unarchived).map_err(|_err| Error::InvalidFormat)?;
-
-				(unarchived, Some(brownfield))
-			}
-		};
-
 		let spec = {
 			let mut path = root.clone();
 			path.push(SPEC_FILE);
@@ -104,8 +89,7 @@ impl TryFrom<PathBuf> for Package {
 			main,
 			spec,
 			schema,
-			example,
-			brownfield,
+			example
 		})
 	}
 }

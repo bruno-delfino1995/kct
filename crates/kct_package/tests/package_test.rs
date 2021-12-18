@@ -67,18 +67,6 @@ mod try_from {
 	}
 
 	#[test]
-	fn from_archive() {
-		let cwd = TempDir::new().unwrap();
-		let (package, _dir) = package(vec![], vec![]);
-		let package = package.unwrap();
-		let archive = package.archive(&PathBuf::from(cwd.path())).unwrap();
-
-		let package = Package::try_from(archive);
-
-		assert!(package.is_ok())
-	}
-
-	#[test]
 	fn need_spec() {
 		let (package, _dir) = package(vec![], vec!["kcp.json"]);
 
@@ -148,19 +136,6 @@ mod archive {
 			name,
 			compressed.unwrap().file_stem().unwrap().to_str().unwrap()
 		);
-	}
-
-	#[test]
-	fn can_be_compiled_after_archived() {
-		let cwd = TempDir::new().unwrap();
-		let (package, _dir) = package(vec![], vec![]);
-		let package = package.unwrap();
-
-		let compressed = package.archive(&PathBuf::from(cwd.path())).unwrap();
-		let package = Package::try_from(compressed).unwrap();
-		let compiled = compile_with_example(package, None);
-
-		assert!(compiled.is_ok());
 	}
 }
 

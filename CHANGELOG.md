@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `fullName` now is an "installation property" under `_.name`
 
+### Removed
+
+- stop compiling archived packages due to lack of dependencies
+
 ## [0.4.0] - 2021-12-14
 
 ### Added

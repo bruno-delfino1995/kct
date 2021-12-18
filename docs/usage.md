@@ -26,14 +26,11 @@ kct compile kcp -f values.json | kubectl delete -f -
 
 Package the KCP directory into a KCP archive (aka, a `tgz` file.)
 
-This command is geared towards publishing and sharing packages in an easy way. It simply validates the package against the minimal [structure][kcp-structure], and once the package is valid you'll get a `tar.gz` file compacted into your _CWD_. The newly created archive will have a name consisting of `<name>_<version>.tgz`. With your archive you can then share with your peers or even compile it.
+This command is geared towards publishing and sharing packages in an easy way. It simply validates the package against the minimal [structure][kcp-structure], and once the package is valid you'll get a `tar.gz` file compacted into your _CWD_. The newly created archive will have a name consisting of `<name>_<version>.tgz`. With your archive you can then share with your peers.
 
 ```bash
 # create archive
 kct package kcp
-
-# compile archive
-kct compile kcp_1.0.0.tgz -f values.json | kubectl apply -f -
 ```
 
 [compile-objects]: https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-objects/
