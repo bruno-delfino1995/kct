@@ -34,33 +34,51 @@ pub struct Release {
 	pub name: String,
 }
 
+#[derive(Clone)]
 pub struct Compiler {
-	pub root: PathBuf,
-	pub vendor: PathBuf,
+	pub package: Package,
+	pub release: Rc<Option<Release>>,
+	pub vendor: Rc<PathBuf>,
 	state: EvaluationState,
 }
 
 impl Compiler {
-	pub fn new(root: &Path) -> Self {
-		let root = root.to_path_buf();
-
+	pub fn new(package: Package) -> Self {
+		let release = Rc::new(None);
 		let vendor = {
-			let mut path = root.clone();
+			let mut path = package.root.clone();
 			path.push(VENDOR_FOLDER);
 
-			path
+			Rc::new(path)
 		};
-
-		let state = create_state(&root);
+		let state = create_state(&package.root, &vendor);
 
 		Compiler {
-			root,
+			package,
+			release,
 			vendor,
 			state,
 		}
 	}
 
-	pub fn compile(self, pkg: Package, input: Value, release: Option<Release>) -> Result<Value> {
+	pub fn with_release(mut self, release: Option<Release>) -> Self {
+		self.release = Rc::new(release);
+
+		self
+	}
+
+	pub fn fork(&self, package: Package) -> Self {
+		let state = create_state(&package.root, &self.vendor);
+
+		Compiler {
+			state,
+			package,
+			vendor: Rc::clone(&self.vendor),
+			release: Rc::clone(&self.release),
+		}
+	}
+
+	pub fn compile(self, input: Option<Value>) -> Result<Value> {
 		let render_issue = |err: LocError| {
 			let message = match err.error() {
 				JrError::ImportSyntaxError { path, .. } => {
@@ -72,14 +90,18 @@ impl Compiler {
 			Error::RenderIssue(message)
 		};
 
-		self.state.settings_mut().globals.insert(
-			GLOBAL_VARIABLE.into(),
-			self.create_global(&pkg, &input, &release),
-		);
+		self.package.validate_input(&input)?;
+
+		let input = input.unwrap_or(Value::Null);
+
+		self.state
+			.settings_mut()
+			.globals
+			.insert(GLOBAL_VARIABLE.into(), self.create_global(&input));
 
 		let parsed = self
 			.state
-			.evaluate_file_raw(&pkg.main)
+			.evaluate_file_raw(&self.package.main)
 			.map_err(render_issue)?;
 
 		let rendered = self
@@ -93,14 +115,14 @@ impl Compiler {
 		Ok(json)
 	}
 
-	fn create_global(&self, pkg: &Package, input: &Value, release: &Option<Release>) -> Val {
-		let files = file::create_function(pkg, input);
-		let include = subpackage::create_function(self, release);
+	fn create_global(&self, input: &Value) -> Val {
+		let files = file::create_function(&self.package, input);
+		let include = subpackage::create_function(self);
 		let input = Val::from(input);
 		let name = {
-			let name = match release {
-				Some(release) => format!("{}-{}", release.name, pkg.spec.name),
-				None => pkg.spec.name.clone(),
+			let name = match self.release.as_ref() {
+				Some(release) => format!("{}-{}", release.name, self.package.spec.name),
+				None => self.package.spec.name.clone(),
 			};
 
 			let value = Value::String(name);
@@ -109,17 +131,20 @@ impl Compiler {
 		};
 		let package = {
 			let mut map = Map::<String, Value>::new();
-			map.insert(String::from("name"), Value::String(pkg.spec.name.clone()));
+			map.insert(
+				String::from("name"),
+				Value::String(self.package.spec.name.clone()),
+			);
 			map.insert(
 				String::from("version"),
-				Value::String(pkg.spec.version.to_string()),
+				Value::String(self.package.spec.version.to_string()),
 			);
 
 			let value = Value::Object(map);
 
 			Val::from(&value)
 		};
-		let release = match release {
+		let release = match self.release.as_ref() {
 			None => Val::Null,
 			Some(release) => {
 				let mut map = Map::<String, Value>::new();
@@ -164,7 +189,7 @@ impl Compiler {
 	}
 }
 
-fn create_state(root: &Path) -> EvaluationState {
+fn create_state(root: &Path, vendor: &Path) -> EvaluationState {
 	let root = root.to_path_buf();
 	let state = EvaluationState::default();
 	let resolver = PathResolver::Absolute;
@@ -172,12 +197,7 @@ fn create_state(root: &Path) -> EvaluationState {
 
 	state.with_stdlib();
 
-	let vendor = {
-		let mut path = root.clone();
-		path.push(VENDOR_FOLDER);
-
-		path
-	};
+	let vendor = vendor.to_path_buf();
 
 	let lib = {
 		let mut path = root;

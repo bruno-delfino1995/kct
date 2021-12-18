@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::convert::TryFrom;
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Spec {
 	pub name: String,
 	pub version: Version,

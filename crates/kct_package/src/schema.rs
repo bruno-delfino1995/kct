@@ -3,25 +3,34 @@ use kct_helper::io;
 use serde_json::Value;
 use std::convert::TryFrom;
 use std::path::PathBuf;
+use std::rc::Rc;
 use url::Url;
 use valico::json_schema::Scope;
 
 #[derive(Debug)]
 pub struct Schema {
+	schema: Rc<Value>,
 	scope: Scope,
 	id: Url,
 }
 
-impl TryFrom<Value> for Schema {
+impl Clone for Schema {
+	fn clone(&self) -> Self {
+		Schema::try_from(self.schema.as_ref()).unwrap()
+	}
+}
+
+impl TryFrom<&Value> for Schema {
 	type Error = Error;
 
-	fn try_from(schema: Value) -> Result<Self> {
+	fn try_from(schema: &Value) -> Result<Self> {
 		let mut scope = Scope::new();
 		let id = scope
-			.compile(schema, false)
+			.compile(schema.clone(), false)
 			.map_err(|_err| Error::InvalidSchema)?;
+		let schema = Rc::new(schema.to_owned());
 
-		Ok(Schema { scope, id })
+		Ok(Schema { schema, scope, id })
 	}
 }
 
@@ -34,7 +43,7 @@ impl TryFrom<PathBuf> for Schema {
 				let schema: Value =
 					serde_json::from_str(&contents).map_err(|_err| Error::InvalidSchema)?;
 
-				let schema = Self::try_from(schema)?;
+				let schema = Self::try_from(&schema)?;
 
 				Ok(schema)
 			}

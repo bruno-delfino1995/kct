@@ -20,7 +20,7 @@ const SPEC_FILE: &str = "kcp.json";
 const EXAMPLE_FILE: &str = "example.json";
 const MAIN_FILE: &str = "templates/main.jsonnet";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Package {
 	pub root: PathBuf,
 	pub main: PathBuf,
@@ -60,8 +60,13 @@ impl TryFrom<PathBuf> for Package {
 			path.push(EXAMPLE_FILE);
 
 			if path.exists() {
-				let contents = io::from_file(&path).map_err(|_err| Error::InvalidExample)?;
-				Some(serde_json::from_str(&contents).map_err(|_err| Error::InvalidExample)?)
+				let value = io::from_file(&path)
+					.map_err(|_err| Error::InvalidExample)
+					.and_then(|contents| {
+						serde_json::from_str(&contents).map_err(|_err| Error::InvalidExample)
+					})?;
+
+				Some(value)
 			} else {
 				None
 			}
@@ -78,19 +83,23 @@ impl TryFrom<PathBuf> for Package {
 			}
 		};
 
-		validate_input(&schema, &example).map_err(|err| match err {
-			Error::InvalidInput => Error::InvalidExample,
-			Error::NoInput => Error::NoExample,
-			err => err,
-		})?;
-
-		Ok(Package {
+		let package = Package {
 			root,
 			main,
 			spec,
 			schema,
-			example
-		})
+			example,
+		};
+
+		package
+			.validate_input(&package.example)
+			.map_err(|err| match err {
+				Error::InvalidInput => Error::InvalidExample,
+				Error::NoInput => Error::NoExample,
+				err => err,
+			})?;
+
+		Ok(package)
 	}
 }
 
@@ -101,28 +110,22 @@ impl Package {
 		archive::archive(&name, &self.root, dest)
 	}
 
-	pub(crate) fn validate_input(&self, input: &Option<Value>) -> Result<()> {
-		validate_input(&self.schema, input)
+	pub fn validate_input(&self, input: &Option<Value>) -> Result<()> {
+		let (schema, input) = match (&self.schema, &input) {
+			(None, None) => return Ok(()),
+			(None, Some(_)) => return Err(Error::NoSchema),
+			(Some(_), None) => return Err(Error::NoInput),
+			(Some(schema), Some(input)) => (schema, input),
+		};
+
+		if input.is_object() && schema.validate(input) {
+			Ok(())
+		} else {
+			Err(Error::InvalidInput)
+		}
 	}
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
-		validate_input(&self.schema, &input)?;
-
-		Compiler::new(&self.root).compile(self, input.unwrap_or(Value::Null), release)
-	}
-}
-
-fn validate_input(schema: &Option<Schema>, input: &Option<Value>) -> Result<()> {
-	let (schema, input) = match (&schema, &input) {
-		(None, None) => return Ok(()),
-		(None, Some(_)) => return Err(Error::NoSchema),
-		(Some(_), None) => return Err(Error::NoInput),
-		(Some(schema), Some(input)) => (schema, input),
-	};
-
-	if input.is_object() && schema.validate(input) {
-		Ok(())
-	} else {
-		Err(Error::InvalidInput)
+		Compiler::new(self).with_release(release).compile(input)
 	}
 }
