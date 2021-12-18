@@ -45,12 +45,13 @@ In this example, we've declared a package named `kcp` at version `1.0.0`. which 
 
 To aid developers with external info and utilities, we inject the `_` global into your templates. Within this global each property fulfills a specific purpose. The global structure consists of:
 
-- `input`: injected input that are the result of merging your defaults with inputs provided during compilation
+- `name`: the "installation" name, it's your package name with the release name - use this as your prefix in the templates
+- `input`: injected input that are the result of merging your inputs provided during compilation
 - `files`: function that receives a blob and will return a list with the contents of rendered files
 - `include`: function that receives a package name and an object for input and will return the rendered subpackage
 - `package`: information about your package that can help you scope your resources
-	- `name`: the package names as in the manifest file
-	- `fullName`: your package name prefixed by the release name - use this as your prefix in the templates
+	- `name`: from the manifest file
+  - `version`: from the manifest file
 - `release`: information about the release being manipulated
 	- `name`: the name provided when compiling
 

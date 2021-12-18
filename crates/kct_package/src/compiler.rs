@@ -18,6 +18,7 @@ use std::convert::From;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+pub const NAME_PARAM: &str = "name";
 pub const FILES_PARAM: &str = "files";
 pub const INCLUDE_PARAM: &str = "include";
 pub const PACKAGE_PARAM: &str = "package";
@@ -96,6 +97,16 @@ impl Compiler {
 		let files = file::create_function(pkg, input);
 		let include = subpackage::create_function(self, release);
 		let input = Val::from(input);
+		let name = {
+			let name = match release {
+				Some(release) => format!("{}-{}", release.name, pkg.spec.name),
+				None => pkg.spec.name.clone(),
+			};
+
+			let value = Value::String(name);
+
+			Val::from(&value)
+		};
 		let package = {
 			let mut map = Map::<String, Value>::new();
 			map.insert(String::from("name"), Value::String(pkg.spec.name.clone()));
@@ -103,12 +114,6 @@ impl Compiler {
 				String::from("version"),
 				Value::String(pkg.spec.version.to_string()),
 			);
-
-			let full_name = match release {
-				Some(release) => format!("{}-{}", release.name, pkg.spec.name),
-				None => pkg.spec.name.clone(),
-			};
-			map.insert(String::from("fullName"), Value::String(full_name));
 
 			let value = Value::Object(map);
 
@@ -127,11 +132,12 @@ impl Compiler {
 		};
 
 		let pairs = vec![
-			(FILES_PARAM, files),
+			(NAME_PARAM, name),
 			(PACKAGE_PARAM, package),
 			(RELEASE_PARAM, release),
 			(INPUT_PARAM, input),
 			(INCLUDE_PARAM, include),
+			(FILES_PARAM, files),
 		];
 
 		let entries: FxHashMap<IStr, ObjMember> = pairs

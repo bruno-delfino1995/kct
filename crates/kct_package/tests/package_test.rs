@@ -424,22 +424,19 @@ mod compile {
 		use super::*;
 
 		#[test]
-		fn prefixes_package_name() {
-			let release_name = "rc";
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.package")], vec![]);
+		fn prefixes_installation_name() {
+			let release = Release {
+				name: String::from("rc"),
+			};
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.name")], vec![]);
 			let package = package.unwrap();
-			let expected = format!("{}-{}", release_name, package.spec.name);
 
-			let rendered = compile_with_example(
-				package,
-				Some(Release {
-					name: String::from(release_name),
-				}),
-			)
-			.unwrap();
-			let actual = rendered.get("fullName").unwrap().as_str().unwrap();
+			let json = format!(r#""{}-{}""#, release.name, package.spec.name);
+			let rendered = compile_with_example(package, Some(release));
 
-			assert_eq!(actual, expected);
+			let result = helpers::json(&json);
+
+			assert_eq!(rendered.unwrap(), result);
 		}
 
 		#[test]
@@ -468,9 +465,22 @@ mod compile {
 			let package = package.unwrap();
 
 			let json = format!(
-				r#"{{ "name": "{0}", "fullName": "{1}", "version": "{2}" }}"#,
-				package.spec.name, package.spec.name, package.spec.version
+				r#"{{ "name": "{}", "version": "{}" }}"#,
+				package.spec.name, package.spec.version
 			);
+			let rendered = compile_with_example(package, None);
+
+			let result = helpers::json(&json);
+
+			assert_eq!(rendered.unwrap(), result);
+		}
+
+		#[test]
+		fn is_default_installation_name() {
+			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.name")], vec![]);
+			let package = package.unwrap();
+
+			let json = format!(r#""{}""#, package.spec.name);
 			let rendered = compile_with_example(package, None);
 
 			let result = helpers::json(&json);
