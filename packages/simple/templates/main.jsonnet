@@ -2,7 +2,7 @@
 	apiVersion: "apps/v1",
 	kind: "Deployment",
 	metadata: {
-		name: "debug",
+		name: _.name,
 		labels: {
 			"app.kubernetes.io/name": "debug"
 		},

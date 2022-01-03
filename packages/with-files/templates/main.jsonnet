@@ -1,8 +1,10 @@
+local _ = import 'kct.io';
+
 {
 	apiVersion: 'v1',
 	kind: 'Secret',
 	metadata: {
-		name: 'api-settings',
+		name: _.name,
 	},
 	type: 'Opaque',
 	data: {

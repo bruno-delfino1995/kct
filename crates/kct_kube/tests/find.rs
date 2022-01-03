@@ -37,7 +37,7 @@ fn assert_objects(ok: Return, times: usize) {
 fn assert_paths(ok: Return, paths: Vec<&str>) {
 	assert!(ok.is_ok());
 
-	let paths: Vec<PathBuf> = paths.into_iter().map(|s| PathBuf::from(s)).collect();
+	let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
 	let rendered: Vec<PathBuf> = ok.unwrap().into_iter().map(|(path, _value)| path).collect();
 	assert_eq!(rendered, paths)
 }
@@ -48,7 +48,7 @@ mod objects {
 	#[test]
 	fn finds_objects() {
 		let json = MINIMAL_OBJECT;
-		let found = find_from(&json);
+		let found = find_from(json);
 		assert_objects(found, 1);
 
 		let json = format!(r#"{{"a":{0}, "b":{0}}}"#, MINIMAL_OBJECT);
@@ -78,7 +78,7 @@ mod objects {
 		];
 
 		for &json in values.iter() {
-			let found = find_from(&json);
+			let found = find_from(json);
 			assert_invalid(found);
 		}
 	}
@@ -181,7 +181,7 @@ mod filter {
 
 	fn find_within_minimal(filter: &Filter) -> Return {
 		let val = serde_json::from_str(MINIMAL_OBJECT).unwrap();
-		kct_kube::find(&val, &filter)
+		kct_kube::find(&val, filter)
 	}
 
 	fn find_within_complex(filter: &Filter) -> Return {

@@ -1,23 +1,27 @@
 mod file;
+mod resolvers;
 mod subpackage;
 
+use self::resolvers::*;
 use crate::error::{Error, Result};
 use crate::Package;
 use jrsonnet_evaluator::{
 	error::Error as JrError,
 	error::LocError,
 	trace::{ExplainingFormat, PathResolver},
-	Context, EvaluationState, FileImportResolver, LazyBinding, LazyVal, ManifestFormat, ObjMember,
-	ObjValue, Val,
+	Context, EvaluationState, LazyBinding, LazyVal, ManifestFormat, ObjMember, ObjValue, Val,
 };
 use jrsonnet_interner::IStr;
 use jrsonnet_parser::Visibility;
 use rustc_hash::FxHashMap;
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::convert::From;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+pub const LIB_CODE: &str = include_str!("lib.libsonnet");
+pub const VARS_PREFIX: &str = "kct.io";
 pub const NAME_PARAM: &str = "name";
 pub const FILES_PARAM: &str = "files";
 pub const INCLUDE_PARAM: &str = "include";
@@ -94,10 +98,16 @@ impl Compiler {
 
 		let input = input.unwrap_or(Value::Null);
 
+		let variables = self.create_ext_vars(&input);
+		for (name, value) in variables.iter() {
+			let name = format!("{}/{}", VARS_PREFIX, name);
+			self.state.add_ext_var(name.into(), value.clone())
+		}
+
 		self.state
 			.settings_mut()
 			.globals
-			.insert(GLOBAL_VARIABLE.into(), self.create_global(&input));
+			.insert(GLOBAL_VARIABLE.into(), self.create_global(variables));
 
 		let parsed = self
 			.state
@@ -115,7 +125,7 @@ impl Compiler {
 		Ok(json)
 	}
 
-	fn create_global(&self, input: &Value) -> Val {
+	fn create_ext_vars(&self, input: &Value) -> HashMap<String, Val> {
 		let files = file::create_function(&self.package, input);
 		let include = subpackage::create_function(self);
 		let input = Val::from(input);
@@ -156,15 +166,20 @@ impl Compiler {
 			}
 		};
 
-		let pairs = vec![
+		vec![
 			(NAME_PARAM, name),
 			(PACKAGE_PARAM, package),
 			(RELEASE_PARAM, release),
 			(INPUT_PARAM, input),
 			(INCLUDE_PARAM, include),
 			(FILES_PARAM, files),
-		];
+		]
+		.into_iter()
+		.map(|(k, v)| (String::from(k), v))
+		.collect()
+	}
 
+	fn create_global(&self, pairs: HashMap<String, Val>) -> Val {
 		let entries: FxHashMap<IStr, ObjMember> = pairs
 			.into_iter()
 			.map(|(k, v)| {
@@ -206,9 +221,23 @@ fn create_state(root: &Path, vendor: &Path) -> EvaluationState {
 		path
 	};
 
-	state.set_import_resolver(Box::new(FileImportResolver {
+	let sdk_resolver = Box::new(StaticImportResolver {
+		path: PathBuf::from(VARS_PREFIX),
+		contents: String::from(LIB_CODE),
+	});
+
+	let relative_resolver = Box::new(RelativeImportResolver);
+
+	let lib_resolver = Box::new(LibImportResolver {
 		library_paths: vec![vendor, lib],
-	}));
+	});
+
+	let resolver = AggregatedImportResolver::default()
+		.push(sdk_resolver)
+		.push(relative_resolver)
+		.push(lib_resolver);
+
+	state.set_import_resolver(Box::new(resolver));
 
 	state.set_manifest_format(ManifestFormat::Json(0));
 

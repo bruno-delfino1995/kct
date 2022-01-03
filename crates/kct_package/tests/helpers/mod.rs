@@ -8,5 +8,5 @@ pub fn json(contents: &str) -> Value {
 pub fn template(contents: &str, input: &Value) -> String {
 	let context = Context::from_serialize(input).unwrap();
 
-	Tera::one_off(&contents, &context, true).unwrap()
+	Tera::one_off(contents, &context, true).unwrap()
 }
