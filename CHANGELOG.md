@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `kct.io` as an import path for the current environment (global `_`)
+- `kct.io` library for the current environment, previously global `_`
 
 ### Changed
 
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - stop compiling archived packages due to lack of dependencies
+- `_` global removed in favor of `kct.io` lib
 
 ## [0.4.0] - 2021-12-14
 

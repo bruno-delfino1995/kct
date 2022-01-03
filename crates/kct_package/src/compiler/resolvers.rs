@@ -92,12 +92,19 @@ impl ImportResolver for RelativeImportResolver {
 		from: &PathBuf,
 		path: &PathBuf,
 	) -> jrsonnet_evaluator::error::Result<Rc<PathBuf>> {
-		let mut target = from.parent().unwrap().to_path_buf();
+		let mut target = from.clone();
 		target.push(path);
 
-		std::fs::canonicalize(target)
-			.map_err(|_err| JrError::ImportFileNotFound(from.clone(), path.clone()).into())
-			.map(Rc::new)
+		let resolved = if target.exists() {
+			Some(Rc::new(target))
+		} else {
+			from.parent()
+				.map(|p| p.join(path))
+				.and_then(|p| p.canonicalize().ok())
+				.map(Rc::new)
+		};
+
+		resolved.ok_or_else(|| JrError::ImportFileNotFound(from.clone(), path.clone()).into())
 	}
 
 	fn load_file_contents(&self, path: &PathBuf) -> jrsonnet_evaluator::error::Result<IStr> {

@@ -1,3 +1,5 @@
+local _ = import 'kct.io';
+
 {
 	apiVersion: "apps/v1",
 	kind: "Deployment",

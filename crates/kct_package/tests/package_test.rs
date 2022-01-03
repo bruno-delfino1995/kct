@@ -148,7 +148,7 @@ mod compile {
 		#[test]
 		fn renders_with_null() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.input")],
+				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
 				vec!["example.json", "schema.json"],
 			);
 			let package = package.unwrap();
@@ -164,7 +164,10 @@ mod compile {
 				r#"{ "database": { "port": 5432, "host": "localhost", "credentials": { "user": "admin", "pass": "admin" } } }"#,
 			);
 
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.input")], vec![]);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![],
+			);
 			let package = package.unwrap();
 
 			let rendered = package.compile(Some(input.clone()), None);
@@ -205,7 +208,7 @@ mod compile {
 						"local valid = import './input/entry.jsonnet'; valid",
 					),
 					("templates/input/entry.jsonnet", "import '../input.jsonnet'"),
-					("templates/input.jsonnet", "_.input"),
+					("templates/input.jsonnet", "(import 'kct.io').input"),
 				],
 				vec![],
 			);
@@ -227,7 +230,7 @@ mod compile {
 						"local valid = import './input/entry.jsonnet'; valid",
 					),
 					("templates/input/entry.jsonnet", "import 'input.jsonnet'"),
-					("templates/input.jsonnet", "_.input"),
+					("templates/input.jsonnet", "(import 'kct.io').input"),
 				],
 				vec![],
 			);
@@ -249,7 +252,10 @@ mod compile {
 						"templates/main.jsonnet",
 						"local valid = import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'; valid",
 					),
-					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.input"),
+					(
+						"vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet",
+						"(import 'kct.io').input",
+					),
 				],
 				vec![],
 			);
@@ -269,7 +275,10 @@ mod compile {
 						"templates/main.jsonnet",
 						"local valid = import 'k.libjsonnet'; valid",
 					),
-					("vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet", "_.input"),
+					(
+						"vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet",
+						"(import 'kct.io').input",
+					),
 					(
 						"lib/k.libjsonnet",
 						"import 'ksonnet/ksonnet.beta.4/k8s.libjsonnet'",
@@ -292,7 +301,10 @@ mod compile {
 		#[test]
 		fn renders_templates() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.files('database.toml')")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').files('database.toml')",
+				)],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -306,7 +318,10 @@ mod compile {
 		#[test]
 		fn renders_multiple_templates() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.files('**/*.toml')")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').files('**/*.toml')",
+				)],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -332,7 +347,10 @@ mod compile {
 		#[should_panic(expected = "Unable to compile templates")]
 		fn fails_on_invalid_templates() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.files('invalid.ini')")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').files('invalid.ini')",
+				)],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -348,7 +366,10 @@ mod compile {
 		#[test]
 		fn compiles_templates_with_empty_input() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.files('no-params.txt')")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').files('no-params.txt')",
+				)],
 				vec!["example.json", "schema.json"],
 			);
 			let package = package.unwrap();
@@ -381,7 +402,10 @@ mod compile {
 		#[should_panic(expected = "No template found for glob")]
 		fn fails_on_not_found_template() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "_.files('*.json')")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').files('*.json')",
+				)],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -403,7 +427,10 @@ mod compile {
 			let release = Release {
 				name: String::from("rc"),
 			};
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.name")], vec![]);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "(import 'kct.io').name")],
+				vec![],
+			);
 			let package = package.unwrap();
 
 			let json = format!(r#""{}-{}""#, release.name, package.spec.name);
@@ -419,7 +446,10 @@ mod compile {
 			let release = Release {
 				name: String::from("rc"),
 			};
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.release")], vec![]);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "(import 'kct.io').release")],
+				vec![],
+			);
 			let package = package.unwrap();
 
 			let json = format!(r#"{{ "name": "{0}" }}"#, release.name);
@@ -436,7 +466,10 @@ mod compile {
 
 		#[test]
 		fn is_injected_on_global() {
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.package")], vec![]);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "(import 'kct.io').package")],
+				vec![],
+			);
 			let package = package.unwrap();
 
 			let json = format!(
@@ -452,7 +485,10 @@ mod compile {
 
 		#[test]
 		fn is_default_installation_name() {
-			let (package, _dir) = package(vec![("templates/main.jsonnet", "_.name")], vec![]);
+			let (package, _dir) = package(
+				vec![("templates/main.jsonnet", "(import 'kct.io').name")],
+				vec![],
+			);
 			let package = package.unwrap();
 
 			let json = format!(r#""{}""#, package.spec.name);
@@ -484,13 +520,16 @@ mod compile {
 		#[test]
 		fn are_rendered_with_include() {
 			let (root, dir) = package(
-				vec![("templates/main.jsonnet", "_.include('sub', _.input)")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').include('sub', (import 'kct.io').input)",
+				)],
 				vec![],
 			);
 			subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "_.input")],
+				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -511,14 +550,14 @@ mod compile {
 			let (root, dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"_.include('sub', { database: null })",
+					"(import 'kct.io').include('sub', { database: null })",
 				)],
 				vec![],
 			);
 			let _archive = subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "_.input")],
+				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -538,13 +577,16 @@ mod compile {
 				name: String::from(name),
 			};
 			let (root, dir) = package(
-				vec![("templates/main.jsonnet", "_.include('sub', _.input)")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').include('sub', (import 'kct.io').input)",
+				)],
 				vec![],
 			);
 			let _archive = subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "_.release")],
+				vec![("templates/main.jsonnet", "(import 'kct.io').release")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -559,13 +601,19 @@ mod compile {
 		fn can_render_own_subpackages() {
 			let contents = r#"{"omae_wha": "mou shindeiru"}"#;
 			let (root, dir) = package(
-				vec![("templates/main.jsonnet", "_.include('dep', _.input)")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').include('dep', (import 'kct.io').input)",
+				)],
 				vec![],
 			);
 			subpackage(
 				&dir,
 				"dep",
-				vec![("templates/main.jsonnet", "_.include('transient', _.input)")],
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.io').include('transient', (import 'kct.io').input)",
+				)],
 				vec![],
 			);
 			subpackage(

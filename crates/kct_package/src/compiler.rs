@@ -9,11 +9,8 @@ use jrsonnet_evaluator::{
 	error::Error as JrError,
 	error::LocError,
 	trace::{ExplainingFormat, PathResolver},
-	Context, EvaluationState, LazyBinding, LazyVal, ManifestFormat, ObjMember, ObjValue, Val,
+	EvaluationState, ManifestFormat, Val,
 };
-use jrsonnet_interner::IStr;
-use jrsonnet_parser::Visibility;
-use rustc_hash::FxHashMap;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::convert::From;
@@ -22,7 +19,6 @@ use std::rc::Rc;
 
 pub const LIB_CODE: &str = include_str!("lib.libsonnet");
 pub const VARS_PREFIX: &str = "kct.io";
-pub const NAME_PARAM: &str = "name";
 pub const FILES_PARAM: &str = "files";
 pub const INCLUDE_PARAM: &str = "include";
 pub const PACKAGE_PARAM: &str = "package";
@@ -31,7 +27,6 @@ pub const INPUT_PARAM: &str = "input";
 pub const TEMPLATES_FOLDER: &str = "files";
 pub const VENDOR_FOLDER: &str = "vendor";
 pub const LIB_FOLDER: &str = "lib";
-pub const GLOBAL_VARIABLE: &str = "_";
 
 #[derive(Clone, Debug)]
 pub struct Release {
@@ -104,11 +99,6 @@ impl Compiler {
 			self.state.add_ext_var(name.into(), value.clone())
 		}
 
-		self.state
-			.settings_mut()
-			.globals
-			.insert(GLOBAL_VARIABLE.into(), self.create_global(variables));
-
 		let parsed = self
 			.state
 			.evaluate_file_raw(&self.package.main)
@@ -129,16 +119,6 @@ impl Compiler {
 		let files = file::create_function(&self.package, input);
 		let include = subpackage::create_function(self);
 		let input = Val::from(input);
-		let name = {
-			let name = match self.release.as_ref() {
-				Some(release) => format!("{}-{}", release.name, self.package.spec.name),
-				None => self.package.spec.name.clone(),
-			};
-
-			let value = Value::String(name);
-
-			Val::from(&value)
-		};
 		let package = {
 			let mut map = Map::<String, Value>::new();
 			map.insert(
@@ -167,7 +147,6 @@ impl Compiler {
 		};
 
 		vec![
-			(NAME_PARAM, name),
 			(PACKAGE_PARAM, package),
 			(RELEASE_PARAM, release),
 			(INPUT_PARAM, input),
@@ -177,30 +156,6 @@ impl Compiler {
 		.into_iter()
 		.map(|(k, v)| (String::from(k), v))
 		.collect()
-	}
-
-	fn create_global(&self, pairs: HashMap<String, Val>) -> Val {
-		let entries: FxHashMap<IStr, ObjMember> = pairs
-			.into_iter()
-			.map(|(k, v)| {
-				(
-					k.into(),
-					ObjMember {
-						add: false,
-						visibility: Visibility::Normal,
-						invoke: LazyBinding::Bound(LazyVal::new_resolved(v)),
-						location: None,
-					},
-				)
-			})
-			.collect();
-
-		Val::Obj(ObjValue::new(
-			Context::new(),
-			None,
-			Rc::new(entries),
-			Rc::new(vec![]),
-		))
 	}
 }
 

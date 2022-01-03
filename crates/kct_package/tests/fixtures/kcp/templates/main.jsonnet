@@ -1,3 +1,5 @@
+local _ = import 'kct.io';
+
 {
 	apiVersion: 'v1',
 	kind: 'Secret',
@@ -10,9 +12,9 @@
 		package: _.package,
 		release: _.release,
 		files: {
-			multiple: _.files("**/*.toml"),
-			single: _.files("database.toml"),
-			plain: _.files("no-params.txt"),
+			multiple: _.files('**/*.toml'),
+			single: _.files('database.toml'),
+			plain: _.files('no-params.txt'),
 		},
 	},
 }
