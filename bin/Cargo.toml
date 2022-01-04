@@ -10,7 +10,7 @@ keywords = ["kubernetes", "jsonnet"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-clap = "2.33.3"
+clap = { version = "3.0.1", features = ["derive"] }
 flate2 = "1.0.17"
 kct_helper = { path = "../crates/kct_helper", version = "^0.4.0"}
 kct_kube = { path = "../crates/kct_kube", version = "^0.4.0"}

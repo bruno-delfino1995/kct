@@ -1,6 +1,4 @@
-use crate::cli::CliError;
-use clap::ArgMatches;
-use clap::{App, Arg, SubCommand};
+use crate::error::Error as CError;
 use kct_helper::io;
 use kct_helper::json::merge;
 use kct_kube::Filter;
@@ -11,72 +9,42 @@ use std::env;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
-pub fn command() -> App<'static, 'static> {
-	SubCommand::with_name("compile")
-		.about("compiles the package into valid k8s objects")
-		.arg(
-			Arg::with_name("package")
-				.help("Target to run the subcommand onto")
-				.index(1)
-				.required(true),
-		)
-		.arg(
-			Arg::with_name("input")
-				.short("i")
-				.long("input")
-				.help("Sets the input values for the package")
-				.multiple(true)
-				.number_of_values(1)
-				.takes_value(true),
-		)
-		.arg(
-			Arg::with_name("output")
-				.short("o")
-				.long("output")
-				.help("Where to save compiled yamls")
-				.takes_value(true),
-		)
-		.arg(
-			Arg::with_name("release")
-				.long("release")
-				.help("Scope your package within a release")
-				.takes_value(true),
-		)
-		.arg(
-			Arg::with_name("only")
-				.long("only")
-				.help("List of comma separated paths to compile")
-				.takes_value(true),
-		)
-		.arg(
-			Arg::with_name("except")
-				.long("except")
-				.help("List of comma separated path to not compile")
-				.takes_value(true),
-		)
+use clap::Parser;
+
+#[derive(Parser)]
+pub struct Args {
+	#[clap(help = "directory with the KCP to compile")]
+	package: PathBuf,
+	#[clap(help = "set input values for the package", long, short)]
+	input: Option<Vec<String>>,
+	#[clap(help = "directory to save compiled yamls", long, short)]
+	output: Option<PathBuf>,
+	#[clap(help = "scope your package within a release", long)]
+	release: Option<String>,
+	#[clap(help = "comma separated paths to compile", long)]
+	only: Option<String>,
+	#[clap(help = "comma separated paths to not compile", long)]
+	except: Option<String>,
 }
 
-pub fn run(matches: &ArgMatches) -> Result<String, Box<dyn Error>> {
-	let inputs: Vec<Result<Value, String>> = matches
-		.values_of("input")
+pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
+	let inputs: Vec<Result<Value, String>> = args
+		.input
 		.unwrap_or_default()
+		.into_iter()
 		.map(PathBuf::from)
 		.map(|path| parse_input(&path))
 		.collect();
-	let input = merge_inputs(&inputs).map_err(CliError::InvalidInput)?;
+	let input = merge_inputs(&inputs).map_err(CError::InvalidInput)?;
 
-	let output: Option<PathBuf> = matches.value_of("output").map(PathBuf::from);
-	let output = ensure_output_exists(&output)?;
+	let output = ensure_output_exists(&args.output)?;
 
-	let package_from: PathBuf = matches.value_of("package").map(PathBuf::from).unwrap();
-	let package = Package::try_from(package_from)?;
+	let package = Package::try_from(args.package)?;
 
-	let release = matches.value_of("release").map(|name| Release {
-		name: String::from(name),
-	});
+	let release = args.release.map(|name| Release { name });
 
-	let only: Vec<PathBuf> = matches.value_of("only").map(as_paths).unwrap_or_default();
-	let except: Vec<PathBuf> = matches.value_of("except").map(as_paths).unwrap_or_default();
+	let only: Vec<PathBuf> = args.only.map(|v| as_paths(&v)).unwrap_or_default();
+	let except: Vec<PathBuf> = args.except.map(|v| as_paths(&v)).unwrap_or_default();
 	let filter = Filter { only, except };
 
 	let rendered = package.compile(input, release)?;
