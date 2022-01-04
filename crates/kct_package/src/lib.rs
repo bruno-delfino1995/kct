@@ -9,11 +9,11 @@ use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
 use compiler::extension;
+use compiler::Compilation;
 use compiler::Compiler;
 use compiler::Extension;
 use compiler::Property;
 pub use compiler::Release;
-use jrsonnet_evaluator::Val;
 use kct_helper::io;
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
@@ -131,7 +131,7 @@ impl Package {
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
 		let compiler = Compiler::new(&self)
-			.prop(Property::Input, input.as_ref())
+			.prop(Property::Input, input)
 			.prop(Property::Release, release);
 
 		self.compile_with(compiler)
@@ -140,10 +140,10 @@ impl Package {
 	pub fn compile_with(self, compiler: Compiler) -> Result<Value> {
 		let package = self.clone();
 		let validator = move |c: &Compiler| {
-			let input = c
-				.properties
-				.get(&Property::Input)
-				.map(|v| (&(**v)).try_into().unwrap());
+			let compilation: Compilation = c.into();
+
+			let input = compilation.input.map(|v| (*v).clone());
+
 			package.validate_input(&input).is_ok()
 		};
 
@@ -156,7 +156,7 @@ impl Package {
 	}
 }
 
-impl From<Package> for Val {
+impl From<Package> for Value {
 	fn from(package: Package) -> Self {
 		let mut map = Map::<String, Value>::new();
 		map.insert(
@@ -168,8 +168,6 @@ impl From<Package> for Val {
 			Value::String(package.spec.version.to_string()),
 		);
 
-		let value = Value::Object(map);
-
-		Val::from(&value)
+		Value::Object(map)
 	}
 }

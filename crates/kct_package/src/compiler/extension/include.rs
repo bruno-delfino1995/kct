@@ -33,9 +33,7 @@ pub fn generator(compiler: &Compiler) -> NativeCallback {
 			.map(|val| val.to_string().unwrap())
 			.map(|val| serde_json::from_str(&val).unwrap());
 
-		let compiler = subcompiler
-			.fork(&package)
-			.prop(Property::Input, input.as_ref());
+		let compiler = subcompiler.fork(&package).prop(Property::Input, input);
 
 		let rendered = package
 			.compile_with(compiler)

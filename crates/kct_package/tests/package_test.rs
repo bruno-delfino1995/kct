@@ -186,7 +186,7 @@ mod compile {
 			);
 			let package = root.unwrap();
 
-			let rendered = package.compile(Some(input.clone()), None).unwrap_err();
+			let rendered = package.compile(Some(input), None).unwrap_err();
 
 			match rendered {
 				Error::InvalidInput => panic_any(rendered.to_string()),

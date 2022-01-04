@@ -1,6 +1,8 @@
 pub mod extension;
+mod release;
 mod resolvers;
 
+pub use self::release::Release;
 use self::resolvers::*;
 use crate::error::{Error, Result};
 use crate::Package;
@@ -12,7 +14,7 @@ use jrsonnet_evaluator::{
 	trace::{ExplainingFormat, PathResolver},
 	EvaluationState, ManifestFormat, Val,
 };
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::From;
 use std::hash::Hash;
@@ -29,22 +31,6 @@ pub const INPUT_PARAM: &str = "input";
 pub const VENDOR_FOLDER: &str = "vendor";
 pub const LIB_FOLDER: &str = "lib";
 
-#[derive(Clone, Debug)]
-pub struct Release {
-	pub name: String,
-}
-
-impl From<Release> for Val {
-	fn from(release: Release) -> Self {
-		let mut map = Map::<String, Value>::new();
-		map.insert(String::from("name"), Value::String(release.name));
-
-		let value = Value::Object(map);
-
-		Val::from(&value)
-	}
-}
-
 #[derive(Clone, Hash, PartialEq, Eq)]
 
 pub enum Property {
@@ -60,17 +46,20 @@ pub enum Extension {
 	Include,
 }
 
-pub type Callback = Box<dyn Fn(&Compiler) -> NativeCallback>;
-pub type Validator = Box<dyn Fn(&Compiler) -> bool>;
+pub trait Callback: Fn(&Compiler) -> NativeCallback {}
+impl<T: Fn(&Compiler) -> NativeCallback> Callback for T {}
+
+pub trait Validator: Fn(&Compiler) -> bool {}
+impl<T: Fn(&Compiler) -> bool> Validator for T {}
 
 #[derive(Clone, Default)]
 pub struct Compiler {
-	pub root: Rc<PathBuf>,
-	pub vendor: Rc<PathBuf>,
-	pub entrypoint: PathBuf,
-	pub properties: HashMap<Property, Rc<Val>>,
-	pub extensions: HashMap<Extension, Rc<Callback>>,
-	pub validators: Vec<Rc<Validator>>,
+	root: Rc<PathBuf>,
+	vendor: Rc<PathBuf>,
+	entrypoint: PathBuf,
+	properties: HashMap<Property, Rc<Value>>,
+	extensions: HashMap<Extension, Rc<Box<dyn Callback>>>,
+	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
 impl Compiler {
@@ -100,7 +89,7 @@ impl Compiler {
 		}
 	}
 
-	pub fn prop<V: Into<Val>>(mut self, key: Property, value: Option<V>) -> Self {
+	pub fn prop<V: Into<Value>>(mut self, key: Property, value: Option<V>) -> Self {
 		match value {
 			None => self,
 			Some(v) => {
@@ -111,17 +100,13 @@ impl Compiler {
 		}
 	}
 
-	pub fn extension<F: 'static + Fn(&Compiler) -> NativeCallback>(
-		mut self,
-		key: Extension,
-		generator: F,
-	) -> Self {
+	pub fn extension<F: 'static + Callback>(mut self, key: Extension, generator: F) -> Self {
 		self.extensions.insert(key, Rc::new(Box::new(generator)));
 
 		self
 	}
 
-	pub fn validator<F: 'static + Fn(&Compiler) -> bool>(mut self, validator: F) -> Self {
+	pub fn validator<F: 'static + Validator>(mut self, validator: F) -> Self {
 		self.validators.push(Rc::new(Box::new(validator)));
 
 		self
@@ -150,7 +135,7 @@ impl Compiler {
 		let variables = self.create_ext_vars();
 		for (name, value) in variables {
 			let name = format!("{}/{}", VARS_PREFIX, name);
-			state.add_ext_var(name.into(), (*value).clone());
+			state.add_ext_var(name.into(), value);
 		}
 
 		let parsed = state
@@ -164,49 +149,38 @@ impl Compiler {
 		Ok(json)
 	}
 
-	fn create_ext_vars(&self) -> HashMap<String, Rc<Val>> {
-		let package = Rc::clone(
-			self.properties
-				.get(&Property::Package)
-				.unwrap_or(&Rc::new(Val::Null)),
-		);
-		let release = Rc::clone(
-			self.properties
-				.get(&Property::Release)
-				.unwrap_or(&Rc::new(Val::Null)),
-		);
-		let input = Rc::clone(
-			self.properties
-				.get(&Property::Input)
-				.unwrap_or(&Rc::new(Val::Null)),
-		);
+	fn create_ext_vars(&self) -> HashMap<String, Val> {
+		let from_prop = |p: Property, n: &str| -> (String, Val) {
+			let default = Val::Null;
+			let value = self.properties.get(&p);
 
-		let include = {
-			let func = self.extensions.get(&Extension::Include).unwrap();
+			let val = value.map(|v| Val::from(&(**v))).unwrap_or(default);
 
-			let ext: Rc<FuncVal> =
-				FuncVal::NativeExt(INCLUDE_PARAM.into(), func(self).into()).into();
-
-			Rc::new(Val::Func(ext))
+			(String::from(n), val)
 		};
 
-		let files = {
-			let func = self.extensions.get(&Extension::File).unwrap();
+		let from_ext = |e: Extension, n: &str| -> (String, Val) {
+			let val = match self.extensions.get(&e) {
+				None => Val::Null,
+				Some(func) => {
+					let ext: Rc<FuncVal> =
+						Rc::new(FuncVal::NativeExt(n.into(), Rc::new(func(self))));
 
-			let ext: Rc<FuncVal> = FuncVal::NativeExt(FILES_PARAM.into(), func(self).into()).into();
+					Val::Func(ext)
+				}
+			};
 
-			Rc::new(Val::Func(ext))
+			(String::from(n), val)
 		};
 
 		vec![
-			(PACKAGE_PARAM, package),
-			(RELEASE_PARAM, release),
-			(INPUT_PARAM, input),
-			(INCLUDE_PARAM, include),
-			(FILES_PARAM, files),
+			from_prop(Property::Package, PACKAGE_PARAM),
+			from_prop(Property::Release, RELEASE_PARAM),
+			from_prop(Property::Input, INPUT_PARAM),
+			from_ext(Extension::Include, INCLUDE_PARAM),
+			from_ext(Extension::File, FILES_PARAM),
 		]
 		.into_iter()
-		.map(|(k, v)| (String::from(k), v))
 		.collect()
 	}
 
@@ -248,5 +222,33 @@ impl Compiler {
 		state.set_manifest_format(ManifestFormat::Json(0));
 
 		state
+	}
+}
+
+#[derive(Clone)]
+pub struct Compilation {
+	pub root: Rc<PathBuf>,
+	pub vendor: Rc<PathBuf>,
+	pub package: Option<Rc<Value>>,
+	pub input: Option<Rc<Value>>,
+	pub release: Option<Rc<Value>>,
+}
+
+impl From<&Compiler> for Compilation {
+	fn from(compiler: &Compiler) -> Self {
+		let root = Rc::clone(&compiler.root);
+		let vendor = Rc::clone(&compiler.vendor);
+
+		let package = compiler.properties.get(&Property::Package).map(Rc::clone);
+		let input = compiler.properties.get(&Property::Input).map(Rc::clone);
+		let release = compiler.properties.get(&Property::Release).map(Rc::clone);
+
+		Compilation {
+			root,
+			vendor,
+			package,
+			input,
+			release,
+		}
 	}
 }

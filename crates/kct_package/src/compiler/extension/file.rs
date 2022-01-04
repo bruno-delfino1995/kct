@@ -1,5 +1,4 @@
-use crate::compiler::Property;
-use crate::Compiler;
+use crate::compiler::{Compilation, Compiler};
 use globwalk::{DirEntry, GlobWalkerBuilder};
 use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
@@ -14,12 +13,9 @@ pub const TEMPLATES_FOLDER: &str = "files";
 pub fn generator(compiler: &Compiler) -> NativeCallback {
 	let params = ParamsDesc(Rc::new(vec![Param("name".into(), None)]));
 
-	let root = compiler.root.clone();
-	let input = compiler
-		.properties
-		.get(&Property::Input)
-		.unwrap_or(&Rc::new(Val::Null))
-		.clone();
+	let compilation: Compilation = compiler.into();
+	let root = compilation.root.clone();
+	let input = compilation.input.unwrap_or_else(|| Rc::new(Value::Null));
 	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
 		let file = match name {
@@ -31,7 +27,6 @@ pub fn generator(compiler: &Compiler) -> NativeCallback {
 			}
 		};
 
-		let input: Value = input.as_ref().try_into().unwrap();
 		let compiled = compile_template(&root, file, &input)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))?;
 
