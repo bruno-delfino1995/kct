@@ -1,10 +1,11 @@
-mod file;
+pub mod extension;
 mod resolvers;
-mod subpackage;
 
 use self::resolvers::*;
 use crate::error::{Error, Result};
 use crate::Package;
+use jrsonnet_evaluator::native::NativeCallback;
+use jrsonnet_evaluator::FuncVal;
 use jrsonnet_evaluator::{
 	error::Error as JrError,
 	error::LocError,
@@ -14,7 +15,8 @@ use jrsonnet_evaluator::{
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::convert::From;
-use std::path::{Path, PathBuf};
+use std::hash::Hash;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 pub const LIB_CODE: &str = include_str!("lib.libsonnet");
@@ -24,7 +26,6 @@ pub const INCLUDE_PARAM: &str = "include";
 pub const PACKAGE_PARAM: &str = "package";
 pub const RELEASE_PARAM: &str = "release";
 pub const INPUT_PARAM: &str = "input";
-pub const TEMPLATES_FOLDER: &str = "files";
 pub const VENDOR_FOLDER: &str = "vendor";
 pub const LIB_FOLDER: &str = "lib";
 
@@ -33,51 +34,100 @@ pub struct Release {
 	pub name: String,
 }
 
-#[derive(Clone)]
+impl From<Release> for Val {
+	fn from(release: Release) -> Self {
+		let mut map = Map::<String, Value>::new();
+		map.insert(String::from("name"), Value::String(release.name));
+
+		let value = Value::Object(map);
+
+		Val::from(&value)
+	}
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+
+pub enum Property {
+	Package,
+	Release,
+	Input,
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+
+pub enum Extension {
+	File,
+	Include,
+}
+
+pub type Callback = Box<dyn Fn(&Compiler) -> NativeCallback>;
+pub type Validator = Box<dyn Fn(&Compiler) -> bool>;
+
+#[derive(Clone, Default)]
 pub struct Compiler {
-	pub package: Package,
-	pub release: Rc<Option<Release>>,
+	pub root: Rc<PathBuf>,
 	pub vendor: Rc<PathBuf>,
-	state: EvaluationState,
+	pub entrypoint: PathBuf,
+	pub properties: HashMap<Property, Rc<Val>>,
+	pub extensions: HashMap<Extension, Rc<Callback>>,
+	pub validators: Vec<Rc<Validator>>,
 }
 
 impl Compiler {
-	pub fn new(package: Package) -> Self {
-		let release = Rc::new(None);
+	pub fn new(package: &Package) -> Self {
+		let root = Rc::new(package.root.clone());
 		let vendor = {
 			let mut path = package.root.clone();
 			path.push(VENDOR_FOLDER);
 
 			Rc::new(path)
 		};
-		let state = create_state(&package.root, &vendor);
+		let entrypoint = package.main.clone();
 
 		Compiler {
-			package,
-			release,
+			root,
 			vendor,
-			state,
+			entrypoint,
+			..Default::default()
 		}
 	}
 
-	pub fn with_release(mut self, release: Option<Release>) -> Self {
-		self.release = Rc::new(release);
+	pub fn fork(&self, package: &Package) -> Self {
+		Compiler {
+			root: Rc::new(package.root.clone()),
+			entrypoint: package.main.clone(),
+			..self.clone()
+		}
+	}
+
+	pub fn prop<V: Into<Val>>(mut self, key: Property, value: Option<V>) -> Self {
+		match value {
+			None => self,
+			Some(v) => {
+				self.properties.insert(key, Rc::new(v.into()));
+
+				self
+			}
+		}
+	}
+
+	pub fn extension<F: 'static + Fn(&Compiler) -> NativeCallback>(
+		mut self,
+		key: Extension,
+		generator: F,
+	) -> Self {
+		self.extensions.insert(key, Rc::new(Box::new(generator)));
 
 		self
 	}
 
-	pub fn fork(&self, package: Package) -> Self {
-		let state = create_state(&package.root, &self.vendor);
+	pub fn validator<F: 'static + Fn(&Compiler) -> bool>(mut self, validator: F) -> Self {
+		self.validators.push(Rc::new(Box::new(validator)));
 
-		Compiler {
-			state,
-			package,
-			vendor: Rc::clone(&self.vendor),
-			release: Rc::clone(&self.release),
-		}
+		self
 	}
 
-	pub fn compile(self, input: Option<Value>) -> Result<Value> {
+	pub fn compile(self) -> Result<Value> {
 		let render_issue = |err: LocError| {
 			let message = match err.error() {
 				JrError::ImportSyntaxError { path, .. } => {
@@ -89,61 +139,63 @@ impl Compiler {
 			Error::RenderIssue(message)
 		};
 
-		self.package.validate_input(&input)?;
-
-		let input = input.unwrap_or(Value::Null);
-
-		let variables = self.create_ext_vars(&input);
-		for (name, value) in variables.iter() {
-			let name = format!("{}/{}", VARS_PREFIX, name);
-			self.state.add_ext_var(name.into(), value.clone())
+		for validator in self.validators.iter() {
+			if !validator(&self) {
+				return Err(Error::InvalidInput);
+			}
 		}
 
-		let parsed = self
-			.state
-			.evaluate_file_raw(&self.package.main)
+		let state = self.create_state();
+
+		let variables = self.create_ext_vars();
+		for (name, value) in variables {
+			let name = format!("{}/{}", VARS_PREFIX, name);
+			state.add_ext_var(name.into(), (*value).clone());
+		}
+
+		let parsed = state
+			.evaluate_file_raw(&self.entrypoint)
 			.map_err(render_issue)?;
 
-		let rendered = self
-			.state
-			.manifest(parsed)
-			.map_err(render_issue)?
-			.to_string();
+		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
 
 		let json = serde_json::from_str(&rendered).map_err(|_err| Error::InvalidOutput)?;
 
 		Ok(json)
 	}
 
-	fn create_ext_vars(&self, input: &Value) -> HashMap<String, Val> {
-		let files = file::create_function(&self.package, input);
-		let include = subpackage::create_function(self);
-		let input = Val::from(input);
-		let package = {
-			let mut map = Map::<String, Value>::new();
-			map.insert(
-				String::from("name"),
-				Value::String(self.package.spec.name.clone()),
-			);
-			map.insert(
-				String::from("version"),
-				Value::String(self.package.spec.version.to_string()),
-			);
+	fn create_ext_vars(&self) -> HashMap<String, Rc<Val>> {
+		let package = Rc::clone(
+			self.properties
+				.get(&Property::Package)
+				.unwrap_or(&Rc::new(Val::Null)),
+		);
+		let release = Rc::clone(
+			self.properties
+				.get(&Property::Release)
+				.unwrap_or(&Rc::new(Val::Null)),
+		);
+		let input = Rc::clone(
+			self.properties
+				.get(&Property::Input)
+				.unwrap_or(&Rc::new(Val::Null)),
+		);
 
-			let value = Value::Object(map);
+		let include = {
+			let func = self.extensions.get(&Extension::Include).unwrap();
 
-			Val::from(&value)
+			let ext: Rc<FuncVal> =
+				FuncVal::NativeExt(INCLUDE_PARAM.into(), func(self).into()).into();
+
+			Rc::new(Val::Func(ext))
 		};
-		let release = match self.release.as_ref() {
-			None => Val::Null,
-			Some(release) => {
-				let mut map = Map::<String, Value>::new();
-				map.insert(String::from("name"), Value::String(release.name.clone()));
 
-				let value = Value::Object(map);
+		let files = {
+			let func = self.extensions.get(&Extension::File).unwrap();
 
-				Val::from(&value)
-			}
+			let ext: Rc<FuncVal> = FuncVal::NativeExt(FILES_PARAM.into(), func(self).into()).into();
+
+			Rc::new(Val::Func(ext))
 		};
 
 		vec![
@@ -157,44 +209,44 @@ impl Compiler {
 		.map(|(k, v)| (String::from(k), v))
 		.collect()
 	}
-}
 
-fn create_state(root: &Path, vendor: &Path) -> EvaluationState {
-	let root = root.to_path_buf();
-	let state = EvaluationState::default();
-	let resolver = PathResolver::Absolute;
-	state.set_trace_format(Box::new(ExplainingFormat { resolver }));
+	fn create_state(&self) -> EvaluationState {
+		let root = (*self.root).clone();
+		let state = EvaluationState::default();
+		let resolver = PathResolver::Absolute;
+		state.set_trace_format(Box::new(ExplainingFormat { resolver }));
 
-	state.with_stdlib();
+		state.with_stdlib();
 
-	let vendor = vendor.to_path_buf();
+		let vendor = (*self.vendor).clone();
 
-	let lib = {
-		let mut path = root;
-		path.push(LIB_FOLDER);
+		let lib = {
+			let mut path = root;
+			path.push(LIB_FOLDER);
 
-		path
-	};
+			path
+		};
 
-	let sdk_resolver = Box::new(StaticImportResolver {
-		path: PathBuf::from(VARS_PREFIX),
-		contents: String::from(LIB_CODE),
-	});
+		let sdk_resolver = Box::new(StaticImportResolver {
+			path: PathBuf::from(VARS_PREFIX),
+			contents: String::from(LIB_CODE),
+		});
 
-	let relative_resolver = Box::new(RelativeImportResolver);
+		let relative_resolver = Box::new(RelativeImportResolver);
 
-	let lib_resolver = Box::new(LibImportResolver {
-		library_paths: vec![vendor, lib],
-	});
+		let lib_resolver = Box::new(LibImportResolver {
+			library_paths: vec![vendor, lib],
+		});
 
-	let resolver = AggregatedImportResolver::default()
-		.push(sdk_resolver)
-		.push(relative_resolver)
-		.push(lib_resolver);
+		let resolver = AggregatedImportResolver::default()
+			.push(sdk_resolver)
+			.push(relative_resolver)
+			.push(lib_resolver);
 
-	state.set_import_resolver(Box::new(resolver));
+		state.set_import_resolver(Box::new(resolver));
 
-	state.set_manifest_format(ManifestFormat::Json(0));
+		state.set_manifest_format(ManifestFormat::Json(0));
 
-	state
+		state
+	}
 }

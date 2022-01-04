@@ -6,7 +6,9 @@ local _ = import 'kct.io';
 	metadata: {
 		name: _.name,
 		labels: {
-			"app.kubernetes.io/name": "debug"
+			"app.kubernetes.io/name": "debug",
+			package: _.package,
+			release: _.release,
 		},
 	},
 	spec: {

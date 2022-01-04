@@ -1,14 +1,11 @@
-use super::Compiler;
-use super::INCLUDE_PARAM;
-use crate::Package;
-use jrsonnet_evaluator::{
-	error::Error as JrError, error::LocError, native::NativeCallback, FuncVal, Val,
-};
+use crate::compiler::Property;
+use crate::{Compiler, Package};
+use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;
 use std::{convert::TryFrom, rc::Rc};
 
-pub fn create_function(compiler: &Compiler) -> Val {
+pub fn generator(compiler: &Compiler) -> NativeCallback {
 	let params = ParamsDesc(Rc::new(vec![
 		Param("name".into(), None),
 		Param("input".into(), None),
@@ -36,16 +33,16 @@ pub fn create_function(compiler: &Compiler) -> Val {
 			.map(|val| val.to_string().unwrap())
 			.map(|val| serde_json::from_str(&val).unwrap());
 
-		let rendered = subcompiler
-			.fork(package)
-			.compile(input)
+		let compiler = subcompiler
+			.fork(&package)
+			.prop(Property::Input, input.as_ref());
+
+		let rendered = package
+			.compile_with(compiler)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.to_string().into())))?;
 
 		Ok(Val::from(&rendered))
 	};
 
-	let func = NativeCallback::new(params, render);
-	let ext: Rc<FuncVal> = FuncVal::NativeExt(INCLUDE_PARAM.into(), func.into()).into();
-
-	Val::Func(ext)
+	NativeCallback::new(params, render)
 }

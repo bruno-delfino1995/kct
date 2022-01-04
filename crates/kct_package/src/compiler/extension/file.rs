@@ -1,9 +1,7 @@
-use super::{FILES_PARAM, TEMPLATES_FOLDER};
-use crate::Package;
+use crate::compiler::Property;
+use crate::Compiler;
 use globwalk::{DirEntry, GlobWalkerBuilder};
-use jrsonnet_evaluator::{
-	error::Error as JrError, error::LocError, native::NativeCallback, FuncVal, Val,
-};
+use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::{Map, Value};
 use std::fs;
@@ -11,11 +9,17 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tera::{Context, Tera};
 
-pub fn create_function(pkg: &Package, input: &Value) -> Val {
+pub const TEMPLATES_FOLDER: &str = "files";
+
+pub fn generator(compiler: &Compiler) -> NativeCallback {
 	let params = ParamsDesc(Rc::new(vec![Param("name".into(), None)]));
 
-	let root = pkg.root.clone();
-	let input = input.clone();
+	let root = compiler.root.clone();
+	let input = compiler
+		.properties
+		.get(&Property::Input)
+		.unwrap_or(&Rc::new(Val::Null))
+		.clone();
 	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
 		let file = match name {
@@ -27,6 +31,7 @@ pub fn create_function(pkg: &Package, input: &Value) -> Val {
 			}
 		};
 
+		let input: Value = input.as_ref().try_into().unwrap();
 		let compiled = compile_template(&root, file, &input)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))?;
 
@@ -47,10 +52,7 @@ pub fn create_function(pkg: &Package, input: &Value) -> Val {
 		}
 	};
 
-	let func = NativeCallback::new(params, render);
-	let ext: Rc<FuncVal> = FuncVal::NativeExt(FILES_PARAM.into(), func.into()).into();
-
-	Val::Func(ext)
+	NativeCallback::new(params, render)
 }
 
 fn compile_template(

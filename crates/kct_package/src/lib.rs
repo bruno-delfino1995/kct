@@ -8,10 +8,14 @@ mod compiler;
 use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
+use compiler::extension;
 use compiler::Compiler;
+use compiler::Extension;
+use compiler::Property;
 pub use compiler::Release;
+use jrsonnet_evaluator::Val;
 use kct_helper::io;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
@@ -126,6 +130,46 @@ impl Package {
 	}
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
-		Compiler::new(self).with_release(release).compile(input)
+		let compiler = Compiler::new(&self)
+			.prop(Property::Input, input.as_ref())
+			.prop(Property::Release, release);
+
+		self.compile_with(compiler)
+	}
+
+	pub fn compile_with(self, compiler: Compiler) -> Result<Value> {
+		let package = self.clone();
+		let validator = move |c: &Compiler| {
+			let input = c
+				.properties
+				.get(&Property::Input)
+				.map(|v| (&(**v)).try_into().unwrap());
+			package.validate_input(&input).is_ok()
+		};
+
+		compiler
+			.prop(Property::Package, Some(self))
+			.extension(Extension::File, extension::file::generator)
+			.extension(Extension::Include, extension::include::generator)
+			.validator(validator)
+			.compile()
+	}
+}
+
+impl From<Package> for Val {
+	fn from(package: Package) -> Self {
+		let mut map = Map::<String, Value>::new();
+		map.insert(
+			String::from("name"),
+			Value::String(package.spec.name.clone()),
+		);
+		map.insert(
+			String::from("version"),
+			Value::String(package.spec.version.to_string()),
+		);
+
+		let value = Value::Object(map);
+
+		Val::from(&value)
 	}
 }

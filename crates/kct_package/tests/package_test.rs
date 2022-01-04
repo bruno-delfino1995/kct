@@ -174,6 +174,25 @@ mod compile {
 
 			assert_eq!(rendered.unwrap(), input);
 		}
+
+		#[test]
+		#[should_panic(expected = "input provided doesn't match the schema")]
+		fn validate_input() {
+			let input: Value = helpers::json(r#"{ "database": null }"#);
+
+			let (root, _dir) = package(
+				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![],
+			);
+			let package = root.unwrap();
+
+			let rendered = package.compile(Some(input.clone()), None).unwrap_err();
+
+			match rendered {
+				Error::InvalidInput => panic_any(rendered.to_string()),
+				_ => panic!("It should be a validation issue!"),
+			}
+		}
 	}
 
 	mod jsonnet {
