@@ -5,7 +5,7 @@ mod resolvers;
 pub use self::release::Release;
 use self::resolvers::*;
 use crate::error::{Error, Result};
-use crate::Package;
+use derive_builder::Builder;
 use jrsonnet_evaluator::native::NativeCallback;
 use jrsonnet_evaluator::FuncVal;
 use jrsonnet_evaluator::{
@@ -18,32 +18,81 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::From;
 use std::hash::Hash;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 pub const LIB_CODE: &str = include_str!("lib.libsonnet");
 pub const VARS_PREFIX: &str = "kct.io";
-pub const FILES_PARAM: &str = "files";
-pub const INCLUDE_PARAM: &str = "include";
-pub const PACKAGE_PARAM: &str = "package";
-pub const RELEASE_PARAM: &str = "release";
-pub const INPUT_PARAM: &str = "input";
-pub const VENDOR_FOLDER: &str = "vendor";
-pub const LIB_FOLDER: &str = "lib";
 
 #[derive(Clone, Hash, PartialEq, Eq)]
-
 pub enum Property {
 	Package,
 	Release,
 	Input,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+impl Property {
+	fn as_str(&self) -> &str {
+		use Property::*;
 
+		match self {
+			Package => "package",
+			Release => "release",
+			Input => "input",
+		}
+	}
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Extension {
 	File,
 	Include,
+}
+
+impl Extension {
+	fn as_str(&self) -> &str {
+		use Extension::*;
+
+		match self {
+			File => "files",
+			Include => "include",
+		}
+	}
+}
+
+#[derive(Clone, Default, Builder)]
+#[builder(pattern = "owned")]
+pub struct Workspace {
+	root: PathBuf,
+	entrypoint: PathBuf,
+	lib: PathBuf,
+	vendor: Rc<PathBuf>,
+}
+
+impl Workspace {
+	fn setup(&self, builder: WorkspaceBuilder) -> WorkspaceBuilder {
+		let builder = match builder.vendor {
+			None => builder.vendor(Rc::clone(&self.vendor)),
+			Some(_) => builder,
+		};
+
+		let builder = match builder.lib {
+			None => builder.lib(self.lib.clone()),
+			Some(_) => builder,
+		};
+
+		let builder = match builder.root {
+			None => builder.root(self.root.clone()),
+			Some(_) => builder,
+		};
+
+		
+
+		match builder.entrypoint {
+			None => builder.entrypoint(self.entrypoint.clone()),
+			Some(_) => builder,
+		}
+	}
 }
 
 pub trait Callback: Fn(&Compiler) -> NativeCallback {}
@@ -54,39 +103,31 @@ impl<T: Fn(&Compiler) -> bool> Validator for T {}
 
 #[derive(Clone, Default)]
 pub struct Compiler {
-	root: Rc<PathBuf>,
-	vendor: Rc<PathBuf>,
-	entrypoint: PathBuf,
+	workspace: Workspace,
 	properties: HashMap<Property, Rc<Value>>,
 	extensions: HashMap<Extension, Rc<Box<dyn Callback>>>,
 	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
-impl Compiler {
-	pub fn new(package: &Package) -> Self {
-		let root = Rc::new(package.root.clone());
-		let vendor = {
-			let mut path = package.root.clone();
-			path.push(VENDOR_FOLDER);
+impl TryFrom<WorkspaceBuilder> for Compiler {
+	type Error = Error;
 
-			Rc::new(path)
-		};
-		let entrypoint = package.main.clone();
-
-		Compiler {
-			root,
-			vendor,
-			entrypoint,
-			..Default::default()
-		}
+	fn try_from(builder: WorkspaceBuilder) -> Result<Self> {
+		Compiler::setup(builder)
+			.build()
+			.map_err(|_| Error::InvalidInput)
+			.map(|workspace| Compiler {
+				workspace,
+				..Default::default()
+			})
 	}
+}
 
-	pub fn fork(&self, package: &Package) -> Self {
-		Compiler {
-			root: Rc::new(package.root.clone()),
-			entrypoint: package.main.clone(),
-			..self.clone()
-		}
+impl Compiler {
+	pub fn workspace(mut self, workspace: Workspace) -> Self {
+		self.workspace = workspace;
+
+		self
 	}
 
 	pub fn prop<V: Into<Value>>(mut self, key: Property, value: Option<V>) -> Self {
@@ -139,7 +180,7 @@ impl Compiler {
 		}
 
 		let parsed = state
-			.evaluate_file_raw(&self.entrypoint)
+			.evaluate_file_raw(&self.workspace.entrypoint)
 			.map_err(render_issue)?;
 
 		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
@@ -150,56 +191,51 @@ impl Compiler {
 	}
 
 	fn create_ext_vars(&self) -> HashMap<String, Val> {
-		let from_prop = |p: Property, n: &str| -> (String, Val) {
+		let from_prop = |p: Property| -> (String, Val) {
 			let default = Val::Null;
+			let name = p.as_str();
 			let value = self.properties.get(&p);
 
 			let val = value.map(|v| Val::from(&(**v))).unwrap_or(default);
 
-			(String::from(n), val)
+			(String::from(name), val)
 		};
 
-		let from_ext = |e: Extension, n: &str| -> (String, Val) {
+		let from_ext = |e: Extension| -> (String, Val) {
+			let name = e.as_str();
 			let val = match self.extensions.get(&e) {
 				None => Val::Null,
 				Some(func) => {
 					let ext: Rc<FuncVal> =
-						Rc::new(FuncVal::NativeExt(n.into(), Rc::new(func(self))));
+						Rc::new(FuncVal::NativeExt(name.into(), Rc::new(func(self))));
 
 					Val::Func(ext)
 				}
 			};
 
-			(String::from(n), val)
+			(String::from(name), val)
 		};
 
 		vec![
-			from_prop(Property::Package, PACKAGE_PARAM),
-			from_prop(Property::Release, RELEASE_PARAM),
-			from_prop(Property::Input, INPUT_PARAM),
-			from_ext(Extension::Include, INCLUDE_PARAM),
-			from_ext(Extension::File, FILES_PARAM),
+			from_prop(Property::Package),
+			from_prop(Property::Release),
+			from_prop(Property::Input),
+			from_ext(Extension::Include),
+			from_ext(Extension::File),
 		]
 		.into_iter()
 		.collect()
 	}
 
 	fn create_state(&self) -> EvaluationState {
-		let root = (*self.root).clone();
 		let state = EvaluationState::default();
 		let resolver = PathResolver::Absolute;
 		state.set_trace_format(Box::new(ExplainingFormat { resolver }));
 
 		state.with_stdlib();
 
-		let vendor = (*self.vendor).clone();
-
-		let lib = {
-			let mut path = root;
-			path.push(LIB_FOLDER);
-
-			path
-		};
+		let vendor = self.workspace.vendor.to_path_buf();
+		let lib = self.workspace.lib.clone();
 
 		let sdk_resolver = Box::new(StaticImportResolver {
 			path: PathBuf::from(VARS_PREFIX),
@@ -225,10 +261,46 @@ impl Compiler {
 	}
 }
 
+impl Compiler {
+	fn setup(builder: WorkspaceBuilder) -> WorkspaceBuilder {
+		match builder.root {
+			None => builder,
+			Some(ref root) => {
+				let lib = Self::default_lib(root);
+				let vendor = Rc::new(Self::default_vendor(root));
+
+				let builder = match builder.lib {
+					None => builder.lib(lib),
+					Some(_) => builder,
+				};
+
+				
+
+				match builder.vendor {
+					None => builder.vendor(vendor),
+					Some(_) => builder,
+				}
+			}
+		}
+	}
+
+	fn default_vendor(root: &Path) -> PathBuf {
+		let mut path = root.to_path_buf();
+		path.push("vendor");
+
+		path
+	}
+
+	fn default_lib(root: &Path) -> PathBuf {
+		let mut path = root.to_path_buf();
+		path.push("lib");
+
+		path
+	}
+}
+
 #[derive(Clone)]
 pub struct Compilation {
-	pub root: Rc<PathBuf>,
-	pub vendor: Rc<PathBuf>,
 	pub package: Option<Rc<Value>>,
 	pub input: Option<Rc<Value>>,
 	pub release: Option<Rc<Value>>,
@@ -236,16 +308,11 @@ pub struct Compilation {
 
 impl From<&Compiler> for Compilation {
 	fn from(compiler: &Compiler) -> Self {
-		let root = Rc::clone(&compiler.root);
-		let vendor = Rc::clone(&compiler.vendor);
-
 		let package = compiler.properties.get(&Property::Package).map(Rc::clone);
 		let input = compiler.properties.get(&Property::Input).map(Rc::clone);
 		let release = compiler.properties.get(&Property::Release).map(Rc::clone);
 
 		Compilation {
-			root,
-			vendor,
 			package,
 			input,
 			release,

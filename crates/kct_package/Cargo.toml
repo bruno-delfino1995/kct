@@ -8,6 +8,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+derive_builder = "0.10.2"
 flate2 = "1.0.17"
 globwalk = "0.8.0"
 jrsonnet-evaluator = "0.3.8"

@@ -8,12 +8,12 @@ mod compiler;
 use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
-use compiler::extension;
 use compiler::Compilation;
 use compiler::Compiler;
 use compiler::Extension;
 use compiler::Property;
 pub use compiler::Release;
+use compiler::{extension, WorkspaceBuilder};
 use kct_helper::io;
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
@@ -130,7 +130,8 @@ impl Package {
 	}
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
-		let compiler = Compiler::new(&self)
+		let workspace_builder: WorkspaceBuilder = (&self).into();
+		let compiler = Compiler::try_from(workspace_builder)?
 			.prop(Property::Input, input)
 			.prop(Property::Release, release);
 
@@ -148,7 +149,7 @@ impl Package {
 		};
 
 		compiler
-			.prop(Property::Package, Some(self))
+			.prop(Property::Package, Some(self).as_ref())
 			.extension(Extension::File, extension::file::generator)
 			.extension(Extension::Include, extension::include::generator)
 			.validator(validator)
@@ -156,8 +157,8 @@ impl Package {
 	}
 }
 
-impl From<Package> for Value {
-	fn from(package: Package) -> Self {
+impl From<&Package> for Value {
+	fn from(package: &Package) -> Self {
 		let mut map = Map::<String, Value>::new();
 		map.insert(
 			String::from("name"),
@@ -169,5 +170,16 @@ impl From<Package> for Value {
 		);
 
 		Value::Object(map)
+	}
+}
+
+impl From<&Package> for WorkspaceBuilder {
+	fn from(package: &Package) -> Self {
+		let root = package.root.clone();
+		let entrypoint = package.main.clone();
+
+		WorkspaceBuilder::default()
+			.root(root)
+			.entrypoint(entrypoint)
 	}
 }

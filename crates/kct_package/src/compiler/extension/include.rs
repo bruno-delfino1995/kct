@@ -1,4 +1,4 @@
-use crate::compiler::Property;
+use crate::compiler::{Property};
 use crate::{Compiler, Package};
 use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
@@ -11,8 +11,9 @@ pub fn generator(compiler: &Compiler) -> NativeCallback {
 		Param("input".into(), None),
 	]));
 
-	let root = compiler.vendor.clone();
-	let subcompiler = compiler.clone();
+	let vendor = compiler.workspace.vendor.to_path_buf();
+	let workspace = compiler.workspace.clone();
+	let compiler = compiler.clone();
 	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
 		let package = match name {
@@ -24,7 +25,7 @@ pub fn generator(compiler: &Compiler) -> NativeCallback {
 			}
 		};
 
-		let root = root.join(&package.to_string());
+		let root = vendor.join(&package.to_string());
 		let package = Package::try_from(root)
 			.map_err(|err| LocError::new(JrError::RuntimeError(err.to_string().into())))?;
 
@@ -33,7 +34,15 @@ pub fn generator(compiler: &Compiler) -> NativeCallback {
 			.map(|val| val.to_string().unwrap())
 			.map(|val| serde_json::from_str(&val).unwrap());
 
-		let compiler = subcompiler.fork(&package).prop(Property::Input, input);
+		let workspace = workspace
+			.setup((&package).into())
+			.build()
+			.map_err(|err| LocError::new(JrError::RuntimeError(err.to_string().into())))?;
+
+		let compiler = compiler
+			.clone()
+			.workspace(workspace)
+			.prop(Property::Input, input);
 
 		let rendered = package
 			.compile_with(compiler)

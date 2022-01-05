@@ -14,7 +14,7 @@ pub fn generator(compiler: &Compiler) -> NativeCallback {
 	let params = ParamsDesc(Rc::new(vec![Param("name".into(), None)]));
 
 	let compilation: Compilation = compiler.into();
-	let root = compilation.root.clone();
+	let root = compiler.workspace.root.clone();
 	let input = compilation.input.unwrap_or_else(|| Rc::new(Value::Null));
 	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
 		let name = params.get(0).unwrap();
