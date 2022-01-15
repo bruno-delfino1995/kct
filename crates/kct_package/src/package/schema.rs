@@ -1,4 +1,5 @@
-use super::{Error, Result};
+use crate::error::{Error, Result};
+
 use kct_helper::io;
 use serde_json::Value;
 use std::convert::TryFrom;

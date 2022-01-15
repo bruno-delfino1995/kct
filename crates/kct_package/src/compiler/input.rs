@@ -1,4 +1,5 @@
-use crate::property::{Name, Property};
+use super::property::{Name, Property};
+
 use serde_json::Value;
 
 pub struct Input(pub Value);

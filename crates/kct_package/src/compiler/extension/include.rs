@@ -1,6 +1,9 @@
+use super::{Extension, Name};
+
+use crate::compiler::Compiler;
 use crate::compiler::Input;
-use crate::extension::{Extension, Name};
-use crate::{Compiler, Package};
+use crate::Package;
+
 use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;

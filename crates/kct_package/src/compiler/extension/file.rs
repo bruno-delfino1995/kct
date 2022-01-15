@@ -1,5 +1,7 @@
+use super::{Extension, Name};
+
 use crate::compiler::{Compilation, Compiler};
-use crate::extension::{Extension, Name};
+
 use globwalk::{DirEntry, GlobWalkerBuilder};
 use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
@@ -9,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use tera::{Context, Tera};
 
-pub const TEMPLATES_FOLDER: &str = "files";
+const TEMPLATES_FOLDER: &str = "files";
 
 pub struct File;
 

@@ -1,15 +1,18 @@
-mod input;
-mod release;
+pub mod extension;
+pub mod input;
+pub mod property;
+pub mod release;
 mod resolvers;
 
+use self::extension::Extension;
 pub use self::input::Input;
+use self::property::Property;
 pub use self::release::Release;
 use self::resolvers::*;
+
 use crate::error::{Error, Result};
-use crate::extension::{self, Extension};
-use crate::property::{self, Property};
+
 use derive_builder::Builder;
-use jrsonnet_evaluator::native::NativeCallback;
 use jrsonnet_evaluator::FuncVal;
 use jrsonnet_evaluator::{
 	error::Error as JrError,
@@ -20,7 +23,6 @@ use jrsonnet_evaluator::{
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::From;
-use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 

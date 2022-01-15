@@ -2,7 +2,7 @@ mod fixtures;
 mod helpers;
 
 use fixtures::Fixture;
-use kct_package::{error::Error, Package, Release};
+use kct_package::{Error, Package, Release};
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
 use std::fs;

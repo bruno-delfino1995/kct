@@ -1,6 +1,6 @@
-use crate::property::{Name, Property};
-use serde_json::{Map, Value};
+use super::property::{Name, Property};
 
+use serde_json::{Map, Value};
 use std::convert::From;
 
 #[derive(Clone, Debug)]
