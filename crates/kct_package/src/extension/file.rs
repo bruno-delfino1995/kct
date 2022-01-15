@@ -1,4 +1,5 @@
 use crate::compiler::{Compilation, Compiler};
+use crate::extension::{Extension, Name};
 use globwalk::{DirEntry, GlobWalkerBuilder};
 use jrsonnet_evaluator::{error::Error as JrError, error::LocError, native::NativeCallback, Val};
 use jrsonnet_parser::{Param, ParamsDesc};
@@ -10,44 +11,52 @@ use tera::{Context, Tera};
 
 pub const TEMPLATES_FOLDER: &str = "files";
 
-pub fn generator(compiler: &Compiler) -> NativeCallback {
-	let params = ParamsDesc(Rc::new(vec![Param("name".into(), None)]));
+pub struct File;
 
-	let compilation: Compilation = compiler.into();
-	let root = compiler.workspace.root.clone();
-	let input = compilation.input.unwrap_or_else(|| Rc::new(Value::Null));
-	let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
-		let name = params.get(0).unwrap();
-		let file = match name {
-			Val::Str(name) => name,
-			_ => {
-				return Err(LocError::new(JrError::AssertionFailed(
-					"name should be a string".into(),
+impl Extension for File {
+	fn name(&self) -> Name {
+		Name::File
+	}
+
+	fn generate(&self, compiler: &Compiler) -> NativeCallback {
+		let params = ParamsDesc(Rc::new(vec![Param("name".into(), None)]));
+
+		let compilation: Compilation = compiler.into();
+		let root = compiler.workspace.root.clone();
+		let input = compilation.input.unwrap_or_else(|| Rc::new(Value::Null));
+		let render = move |_caller, params: &[Val]| -> std::result::Result<Val, LocError> {
+			let name = params.get(0).unwrap();
+			let file = match name {
+				Val::Str(name) => name,
+				_ => {
+					return Err(LocError::new(JrError::AssertionFailed(
+						"name should be a string".into(),
+					)))
+				}
+			};
+
+			let compiled = compile_template(&root, file, &input)
+				.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))?;
+
+			if compiled.is_empty() {
+				Err(LocError::new(JrError::RuntimeError(
+					format!("No template found for glob {}", file).into(),
 				)))
+			} else if compiled.len() == 1 {
+				Ok(Val::Str(compiled.into_iter().next().unwrap().into()))
+			} else {
+				Ok(Val::Arr(
+					compiled
+						.into_iter()
+						.map(|comp| Val::Str(comp.into()))
+						.collect::<Vec<Val>>()
+						.into(),
+				))
 			}
 		};
 
-		let compiled = compile_template(&root, file, &input)
-			.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))?;
-
-		if compiled.is_empty() {
-			Err(LocError::new(JrError::RuntimeError(
-				format!("No template found for glob {}", file).into(),
-			)))
-		} else if compiled.len() == 1 {
-			Ok(Val::Str(compiled.into_iter().next().unwrap().into()))
-		} else {
-			Ok(Val::Arr(
-				compiled
-					.into_iter()
-					.map(|comp| Val::Str(comp.into()))
-					.collect::<Vec<Val>>()
-					.into(),
-			))
-		}
-	};
-
-	NativeCallback::new(params, render)
+		NativeCallback::new(params, render)
+	}
 }
 
 fn compile_template(

@@ -1,19 +1,20 @@
 pub mod error;
+pub mod extension;
+pub mod property;
 pub mod schema;
 pub mod spec;
 
 mod archive;
 mod compiler;
 
-use self::error::{Error, Result};
 use self::schema::Schema;
 use self::spec::Spec;
-use compiler::Compilation;
-use compiler::Compiler;
-use compiler::Extension;
-use compiler::Property;
+use crate::error::{Error, Result};
+use crate::property::{Name, Property};
 pub use compiler::Release;
-use compiler::{extension, WorkspaceBuilder};
+use compiler::WorkspaceBuilder;
+use compiler::{Compilation, Compiler, Input};
+use extension::{File, Include};
 use kct_helper::io;
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
@@ -131,9 +132,17 @@ impl Package {
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
 		let workspace_builder: WorkspaceBuilder = (&self).into();
-		let compiler = Compiler::try_from(workspace_builder)?
-			.prop(Property::Input, input)
-			.prop(Property::Release, release);
+		let mut compiler = Compiler::try_from(workspace_builder)?;
+
+		compiler = match input {
+			None => compiler,
+			Some(input) => compiler.prop(Box::new(Input(input))),
+		};
+
+		compiler = match release {
+			None => compiler,
+			Some(release) => compiler.prop(Box::new(release)),
+		};
 
 		self.compile_with(compiler)
 	}
@@ -149,9 +158,9 @@ impl Package {
 		};
 
 		compiler
-			.prop(Property::Package, Some(self).as_ref())
-			.extension(Extension::File, extension::file::generator)
-			.extension(Extension::Include, extension::include::generator)
+			.prop(Box::new(self))
+			.extension(Box::new(File))
+			.extension(Box::new(Include))
 			.validator(validator)
 			.compile()
 	}
@@ -181,5 +190,15 @@ impl From<&Package> for WorkspaceBuilder {
 		WorkspaceBuilder::default()
 			.root(root)
 			.entrypoint(entrypoint)
+	}
+}
+
+impl Property for Package {
+	fn name(&self) -> Name {
+		Name::Package
+	}
+
+	fn generate(&self) -> Value {
+		self.into()
 	}
 }

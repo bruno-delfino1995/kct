@@ -1,10 +1,13 @@
-pub mod extension;
+mod input;
 mod release;
 mod resolvers;
 
+pub use self::input::Input;
 pub use self::release::Release;
 use self::resolvers::*;
 use crate::error::{Error, Result};
+use crate::extension::{self, Extension};
+use crate::property::{self, Property};
 use derive_builder::Builder;
 use jrsonnet_evaluator::native::NativeCallback;
 use jrsonnet_evaluator::FuncVal;
@@ -24,53 +27,17 @@ use std::rc::Rc;
 pub const LIB_CODE: &str = include_str!("lib.libsonnet");
 pub const VARS_PREFIX: &str = "kct.io";
 
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub enum Property {
-	Package,
-	Release,
-	Input,
-}
-
-impl Property {
-	fn as_str(&self) -> &str {
-		use Property::*;
-
-		match self {
-			Package => "package",
-			Release => "release",
-			Input => "input",
-		}
-	}
-}
-
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub enum Extension {
-	File,
-	Include,
-}
-
-impl Extension {
-	fn as_str(&self) -> &str {
-		use Extension::*;
-
-		match self {
-			File => "files",
-			Include => "include",
-		}
-	}
-}
-
 #[derive(Clone, Default, Builder)]
 #[builder(pattern = "owned")]
 pub struct Workspace {
-	root: PathBuf,
-	entrypoint: PathBuf,
-	lib: PathBuf,
-	vendor: Rc<PathBuf>,
+	pub root: PathBuf,
+	pub entrypoint: PathBuf,
+	pub lib: PathBuf,
+	pub vendor: Rc<PathBuf>,
 }
 
 impl Workspace {
-	fn setup(&self, builder: WorkspaceBuilder) -> WorkspaceBuilder {
+	pub(crate) fn setup(&self, builder: WorkspaceBuilder) -> WorkspaceBuilder {
 		let builder = match builder.vendor {
 			None => builder.vendor(Rc::clone(&self.vendor)),
 			Some(_) => builder,
@@ -86,8 +53,6 @@ impl Workspace {
 			Some(_) => builder,
 		};
 
-		
-
 		match builder.entrypoint {
 			None => builder.entrypoint(self.entrypoint.clone()),
 			Some(_) => builder,
@@ -95,17 +60,14 @@ impl Workspace {
 	}
 }
 
-pub trait Callback: Fn(&Compiler) -> NativeCallback {}
-impl<T: Fn(&Compiler) -> NativeCallback> Callback for T {}
-
 pub trait Validator: Fn(&Compiler) -> bool {}
 impl<T: Fn(&Compiler) -> bool> Validator for T {}
 
 #[derive(Clone, Default)]
 pub struct Compiler {
-	workspace: Workspace,
-	properties: HashMap<Property, Rc<Value>>,
-	extensions: HashMap<Extension, Rc<Box<dyn Callback>>>,
+	pub(crate) workspace: Workspace,
+	properties: HashMap<property::Name, Rc<Box<dyn Property>>>,
+	extensions: HashMap<extension::Name, Rc<Box<dyn Extension>>>,
 	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
@@ -130,19 +92,14 @@ impl Compiler {
 		self
 	}
 
-	pub fn prop<V: Into<Value>>(mut self, key: Property, value: Option<V>) -> Self {
-		match value {
-			None => self,
-			Some(v) => {
-				self.properties.insert(key, Rc::new(v.into()));
+	pub fn prop(mut self, prop: Box<dyn Property>) -> Self {
+		self.properties.insert(prop.name(), Rc::new(prop));
 
-				self
-			}
-		}
+		self
 	}
 
-	pub fn extension<F: 'static + Callback>(mut self, key: Extension, generator: F) -> Self {
-		self.extensions.insert(key, Rc::new(Box::new(generator)));
+	pub fn extension(mut self, ext: Box<dyn Extension>) -> Self {
+		self.extensions.insert(ext.name(), Rc::new(ext));
 
 		self
 	}
@@ -191,23 +148,29 @@ impl Compiler {
 	}
 
 	fn create_ext_vars(&self) -> HashMap<String, Val> {
-		let from_prop = |p: Property| -> (String, Val) {
+		let from_prop = |p: property::Name| -> (String, Val) {
 			let default = Val::Null;
 			let name = p.as_str();
-			let value = self.properties.get(&p);
+			let property = self.properties.get(&p);
 
-			let val = value.map(|v| Val::from(&(**v))).unwrap_or(default);
+			let val = property
+				.map(|value| {
+					let val = value.generate();
+
+					Val::from(&val)
+				})
+				.unwrap_or(default);
 
 			(String::from(name), val)
 		};
 
-		let from_ext = |e: Extension| -> (String, Val) {
+		let from_ext = |e: extension::Name| -> (String, Val) {
 			let name = e.as_str();
 			let val = match self.extensions.get(&e) {
 				None => Val::Null,
-				Some(func) => {
-					let ext: Rc<FuncVal> =
-						Rc::new(FuncVal::NativeExt(name.into(), Rc::new(func(self))));
+				Some(ext) => {
+					let func = ext.generate(self);
+					let ext: Rc<FuncVal> = Rc::new(FuncVal::NativeExt(name.into(), Rc::new(func)));
 
 					Val::Func(ext)
 				}
@@ -217,11 +180,11 @@ impl Compiler {
 		};
 
 		vec![
-			from_prop(Property::Package),
-			from_prop(Property::Release),
-			from_prop(Property::Input),
-			from_ext(Extension::Include),
-			from_ext(Extension::File),
+			from_prop(property::Name::Package),
+			from_prop(property::Name::Release),
+			from_prop(property::Name::Input),
+			from_ext(extension::Name::Include),
+			from_ext(extension::Name::File),
 		]
 		.into_iter()
 		.collect()
@@ -274,8 +237,6 @@ impl Compiler {
 					Some(_) => builder,
 				};
 
-				
-
 				match builder.vendor {
 					None => builder.vendor(vendor),
 					Some(_) => builder,
@@ -308,9 +269,17 @@ pub struct Compilation {
 
 impl From<&Compiler> for Compilation {
 	fn from(compiler: &Compiler) -> Self {
-		let package = compiler.properties.get(&Property::Package).map(Rc::clone);
-		let input = compiler.properties.get(&Property::Input).map(Rc::clone);
-		let release = compiler.properties.get(&Property::Release).map(Rc::clone);
+		let get_prop = |p: property::Name| -> Option<Rc<Value>> {
+			compiler
+				.properties
+				.get(&p)
+				.map(|v| v.generate())
+				.map(Rc::new)
+		};
+
+		let package = get_prop(property::Name::Package);
+		let input = get_prop(property::Name::Input);
+		let release = get_prop(property::Name::Release);
 
 		Compilation {
 			package,
