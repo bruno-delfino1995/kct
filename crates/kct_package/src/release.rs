@@ -1,4 +1,7 @@
-use super::property::{Name, Property};
+use crate::compiler::{
+	property::{Name, Output, Property},
+	Compiler,
+};
 
 use serde_json::{Map, Value};
 use std::convert::From;
@@ -22,7 +25,7 @@ impl Property for Release {
 		Name::Release
 	}
 
-	fn generate(&self) -> Value {
-		self.into()
+	fn generate(&self, _: &Compiler) -> Output {
+		Output::Plain(self.into())
 	}
 }

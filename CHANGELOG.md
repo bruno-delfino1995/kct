@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- refactor compiler to be more pluggable with properties, extensions, and validators
+- refactor compiler to be more pluggable with properties and validators
 - refactor bin crate as result of update to clap 3.0
 - `fullName` now is an "installation property" under `_.name`
 - centralize compilation information

@@ -5,12 +5,13 @@ use self::schema::Schema;
 use self::spec::Spec;
 
 use crate::archiver;
-use crate::compiler::extension::{File, Include};
-use crate::compiler::property::{Name, Property};
-pub use crate::compiler::Release;
+use crate::compiler::property::{Name, Output, Property};
 use crate::compiler::WorkspaceBuilder;
-use crate::compiler::{Compilation, Compiler, Input};
+use crate::compiler::{Compilation, Compiler};
 use crate::error::{Error, Result};
+use crate::functions::{File, Include};
+use crate::input::Input;
+use crate::release::Release;
 
 use kct_helper::io;
 use serde_json::{Map, Value};
@@ -156,8 +157,8 @@ impl Package {
 
 		compiler
 			.prop(Box::new(self))
-			.extension(Box::new(File))
-			.extension(Box::new(Include))
+			.prop(Box::new(File))
+			.prop(Box::new(Include))
 			.validator(validator)
 			.compile()
 	}
@@ -195,7 +196,7 @@ impl Property for Package {
 		Name::Package
 	}
 
-	fn generate(&self) -> Value {
-		self.into()
+	fn generate(&self, _: &Compiler) -> Output {
+		Output::Plain(self.into())
 	}
 }

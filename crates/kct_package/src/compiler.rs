@@ -1,28 +1,24 @@
-pub mod extension;
-pub mod input;
 pub mod property;
-pub mod release;
 mod resolvers;
 
-use self::extension::Extension;
-pub use self::input::Input;
-use self::property::Property;
-pub use self::release::Release;
+use self::property::{Function, Name, Output, Property};
 use self::resolvers::*;
 
 use crate::error::{Error, Result};
 
 use derive_builder::Builder;
-use jrsonnet_evaluator::FuncVal;
 use jrsonnet_evaluator::{
 	error::Error as JrError,
 	error::LocError,
+	native::NativeCallback,
 	trace::{ExplainingFormat, PathResolver},
-	EvaluationState, ManifestFormat, Val,
+	EvaluationState, FuncVal, ManifestFormat, Val,
 };
+use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::From;
+use std::panic::panic_any;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -68,8 +64,7 @@ impl<T: Fn(&Compiler) -> bool> Validator for T {}
 #[derive(Clone, Default)]
 pub struct Compiler {
 	pub(crate) workspace: Workspace,
-	properties: HashMap<property::Name, Rc<Box<dyn Property>>>,
-	extensions: HashMap<extension::Name, Rc<Box<dyn Extension>>>,
+	properties: HashMap<Name, Rc<Box<dyn Property>>>,
 	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
@@ -96,12 +91,6 @@ impl Compiler {
 
 	pub fn prop(mut self, prop: Box<dyn Property>) -> Self {
 		self.properties.insert(prop.name(), Rc::new(prop));
-
-		self
-	}
-
-	pub fn extension(mut self, ext: Box<dyn Extension>) -> Self {
-		self.extensions.insert(ext.name(), Rc::new(ext));
 
 		self
 	}
@@ -157,36 +146,59 @@ impl Compiler {
 
 			let val = property
 				.map(|value| {
-					let val = value.generate();
+					let val = value.generate(self);
 
-					Val::from(&val)
+					match val {
+						Output::Plain(val) => Val::from(&val),
+						Output::Callback(Function {
+							params,
+							handler: func,
+						}) => {
+							let params_names = params.clone();
+							let params_desc = {
+								let names: Vec<Param> =
+									params.into_iter().map(|n| Param(n.into(), None)).collect();
+
+								ParamsDesc(Rc::new(names))
+							};
+
+							let handler = move |_caller,
+							                    params: &[Val]|
+							      -> std::result::Result<Val, LocError> {
+								let params_values = params.iter().map(|v| {
+									Value::try_from(v).expect(
+										"Extension functions should only receive valid JSON",
+									)
+								});
+								let params_names = params_names.clone().into_iter();
+
+								let params = params_names.zip(params_values).collect();
+
+								func(params)
+									.map(|v| Val::from(&v))
+									.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))
+							};
+
+							let callback = NativeCallback::new(params_desc, handler);
+
+							let ext: Rc<FuncVal> =
+								Rc::new(FuncVal::NativeExt(name.into(), Rc::new(callback)));
+
+							Val::Func(ext)
+						}
+					}
 				})
 				.unwrap_or(default);
 
 			(String::from(name), val)
 		};
 
-		let from_ext = |e: extension::Name| -> (String, Val) {
-			let name = e.as_str();
-			let val = match self.extensions.get(&e) {
-				None => Val::Null,
-				Some(ext) => {
-					let func = ext.generate(self);
-					let ext: Rc<FuncVal> = Rc::new(FuncVal::NativeExt(name.into(), Rc::new(func)));
-
-					Val::Func(ext)
-				}
-			};
-
-			(String::from(name), val)
-		};
-
 		vec![
-			from_prop(property::Name::Package),
-			from_prop(property::Name::Release),
-			from_prop(property::Name::Input),
-			from_ext(extension::Name::Include),
-			from_ext(extension::Name::File),
+			from_prop(Name::Package),
+			from_prop(Name::Release),
+			from_prop(Name::Input),
+			from_prop(Name::Include),
+			from_prop(Name::File),
 		]
 		.into_iter()
 		.collect()
@@ -275,7 +287,10 @@ impl From<&Compiler> for Compilation {
 			compiler
 				.properties
 				.get(&p)
-				.map(|v| v.generate())
+				.map(|v| match v.generate(compiler) {
+					Output::Callback(_) => panic_any("Property is not a plain value"),
+					Output::Plain(v) => v,
+				})
 				.map(Rc::new)
 		};
 
