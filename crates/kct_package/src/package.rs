@@ -7,7 +7,7 @@ use self::spec::Spec;
 use crate::archiver;
 use crate::compiler::property::{Name, Output, Property};
 use crate::compiler::WorkspaceBuilder;
-use crate::compiler::{Compilation, Compiler};
+use crate::compiler::{Compiler, Runtime};
 use crate::error::{Error, Result};
 use crate::functions::{File, Include};
 use crate::input::Input;
@@ -130,7 +130,10 @@ impl Package {
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
 		let workspace_builder: WorkspaceBuilder = (&self).into();
-		let mut compiler = Compiler::try_from(workspace_builder)?;
+		let mut compiler: Compiler = workspace_builder
+			.build()
+			.map_err(|_| Error::InvalidInput)?
+			.into();
 
 		compiler = match input {
 			None => compiler,
@@ -148,9 +151,15 @@ impl Package {
 	pub fn compile_with(self, compiler: Compiler) -> Result<Value> {
 		let package = self.clone();
 		let validator = move |c: &Compiler| {
-			let compilation: Compilation = c.into();
+			let runtime: Runtime = c.into();
 
-			let input = compilation.input.map(|v| (*v).clone());
+			let input = runtime
+				.properties
+				.get(&Name::Input)
+				.and_then(|v| match v.as_ref() {
+					Output::Plain { value, .. } => Some(value.clone()),
+					_ => None,
+				});
 
 			package.validate_input(&input).is_ok()
 		};
@@ -192,11 +201,10 @@ impl From<&Package> for WorkspaceBuilder {
 }
 
 impl Property for Package {
-	fn name(&self) -> Name {
-		Name::Package
-	}
-
-	fn generate(&self, _: &Compiler) -> Output {
-		Output::Plain(self.into())
+	fn generate(&self, _: Runtime) -> Output {
+		Output::Plain {
+			name: Name::Package,
+			value: self.into(),
+		}
 	}
 }

@@ -1,6 +1,6 @@
 use crate::compiler::{
 	property::{Name, Output, Property},
-	Compiler,
+	Runtime,
 };
 
 use serde_json::{Map, Value};
@@ -21,11 +21,10 @@ impl From<&Release> for Value {
 }
 
 impl Property for Release {
-	fn name(&self) -> Name {
-		Name::Release
-	}
-
-	fn generate(&self, _: &Compiler) -> Output {
-		Output::Plain(self.into())
+	fn generate(&self, _: Runtime) -> Output {
+		Output::Plain {
+			name: Name::Release,
+			value: self.into(),
+		}
 	}
 }

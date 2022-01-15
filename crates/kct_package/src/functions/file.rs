@@ -1,6 +1,6 @@
 use crate::compiler::{
 	property::{Function, Name, Output, Property},
-	Compilation, Compiler,
+	Runtime,
 };
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
@@ -15,44 +15,52 @@ const TEMPLATES_FOLDER: &str = "files";
 pub struct File;
 
 impl Property for File {
-	fn name(&self) -> Name {
-		Name::File
-	}
+	fn generate(&self, runtime: Runtime) -> Output {
+		let root = runtime.workspace.root().to_path_buf();
 
-	fn generate(&self, compiler: &Compiler) -> Output {
+		let input = runtime
+			.properties
+			.get(&Name::Input)
+			.and_then(|v| match v.as_ref() {
+				Output::Plain { value, .. } => Some(value),
+				_ => None,
+			})
+			.unwrap_or(&Value::Null)
+			.clone();
+
 		let params = vec![String::from("name")];
+		let handler = move |params: HashMap<String, Value>| -> Result<Value, String> {
+			let name = match params.get("name") {
+				None => return Err("name is required".into()),
+				Some(name) => name,
+			};
 
-		let compilation: Compilation = compiler.into();
-		let root = compiler.workspace.root.clone();
-		let input = compilation.input.unwrap_or_else(|| Rc::new(Value::Null));
+			let file = match name {
+				Value::String(name) => name,
+				_ => return Err("name should be a string".into()),
+			};
 
-		let handler = Box::new(
-			move |params: HashMap<String, Value>| -> Result<Value, String> {
-				let name = match params.get("name") {
-					None => return Err("name is required".into()),
-					Some(name) => name,
-				};
+			let compiled = compile_template(&root, file, &input)?;
 
-				let file = match name {
-					Value::String(name) => name,
-					_ => return Err("name should be a string".into()),
-				};
+			if compiled.is_empty() {
+				return Err(format!("No template found for glob {}", file));
+			} else if compiled.len() == 1 {
+				Ok(Value::String(compiled.into_iter().next().unwrap()))
+			} else {
+				Ok(Value::Array(
+					compiled.into_iter().map(Value::String).collect(),
+				))
+			}
+		};
 
-				let compiled = compile_template(&root, file, &input)?;
+		let name = Name::File;
+		let handler = Box::new(handler);
+		let function = Function {
+			params,
+			handler: Rc::new(handler),
+		};
 
-				if compiled.is_empty() {
-					return Err(format!("No template found for glob {}", file));
-				} else if compiled.len() == 1 {
-					Ok(Value::String(compiled.into_iter().next().unwrap()))
-				} else {
-					Ok(Value::Array(
-						compiled.into_iter().map(Value::String).collect(),
-					))
-				}
-			},
-		);
-
-		Output::Callback(Function { params, handler })
+		Output::Callback { name, function }
 	}
 }
 

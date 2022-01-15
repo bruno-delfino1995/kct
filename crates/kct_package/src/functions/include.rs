@@ -1,67 +1,62 @@
-use crate::compiler::{
-	property::{Function, Name, Output, Property},
-	Compiler,
-};
+use crate::compiler::property::{Function, Name, Output, Property};
+use crate::compiler::workspace::WorkspaceBuilder;
+use crate::compiler::{Compiler, Runtime};
 use crate::input::Input;
 use crate::Package;
 
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::rc::Rc;
 
 pub struct Include;
 
 impl Property for Include {
-	fn name(&self) -> Name {
-		Name::Include
-	}
+	fn generate(&self, runtime: Runtime) -> Output {
+		let vendor = runtime.workspace.vendor().to_path_buf();
 
-	fn generate(&self, compiler: &Compiler) -> Output {
 		let params = vec![String::from("name"), String::from("input")];
+		let handler = move |params: HashMap<String, Value>| -> Result<Value, String> {
+			let name = match params.get("name") {
+				None => return Err("name is required".into()),
+				Some(name) => name,
+			};
 
-		let vendor = compiler.workspace.vendor.to_path_buf();
-		let workspace = compiler.workspace.clone();
-		let compiler = compiler.clone();
+			let package = match name {
+				Value::String(name) => name,
+				_ => return Err("name should be a string".into()),
+			};
 
-		let handler = Box::new(
-			move |params: HashMap<String, Value>| -> Result<Value, String> {
-				let name = match params.get("name") {
-					None => return Err("name is required".into()),
-					Some(name) => name,
-				};
+			let root = vendor.join(&package);
+			let package = Package::try_from(root).map_err(|err| err.to_string())?;
 
-				let package = match name {
-					Value::String(name) => name,
-					_ => return Err("name should be a string".into()),
-				};
+			let input: Option<Value> = params.get("input").cloned();
 
-				let root = vendor.join(&package);
-				let package = Package::try_from(root).map_err(|err| err.to_string())?;
+			let workspace_builder: WorkspaceBuilder = (&package).into();
 
-				let input: Option<Value> = params.get("input").cloned();
+			let compiler: Compiler = workspace_builder.vendor(vendor.clone()).build()?.into();
 
-				let workspace = workspace
-					.setup((&package).into())
-					.build()
-					.map_err(|err| err.to_string())?;
+			let compiler = {
+				match input {
+					None => compiler,
+					Some(input) => compiler.prop(Box::new(Input(input))),
+				}
+			};
 
-				let compiler = {
-					let base = compiler.clone().workspace(workspace);
+			let rendered = package
+				.compile_with(compiler)
+				.map_err(|err| err.to_string())?;
 
-					match input {
-						None => base,
-						Some(input) => base.prop(Box::new(Input(input))),
-					}
-				};
+			Ok(rendered)
+		};
 
-				let rendered = package
-					.compile_with(compiler)
-					.map_err(|err| err.to_string())?;
+		let name = Name::Include;
+		let handler = Box::new(handler);
+		let function = Function {
+			params,
+			handler: Rc::new(handler),
+		};
 
-				Ok(rendered)
-			},
-		);
-
-		Output::Callback(Function { params, handler })
+		Output::Callback { name, function }
 	}
 }
