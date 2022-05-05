@@ -1,50 +1,16 @@
-mod fixtures;
 mod helpers;
 
-use fixtures::Fixture;
+use crate::helpers::Fixture;
+
 use kct_package::{Error, Package, Release};
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
-use std::fs;
 use std::panic::panic_any;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Error>, TempDir) {
-	use fs_extra::dir::{self as fsdir, CopyOptions};
-
-	let dir = {
-		let tempdir = TempDir::new().unwrap();
-		let source = Fixture::path("kcp");
-
-		let mut options = CopyOptions::new();
-		options.content_only = true;
-		fsdir::copy(source, tempdir.path(), &options).unwrap();
-
-		tempdir
-	};
-
-	for (path, contents) in with {
-		let to_add = dir.path().join(path);
-		let parent = to_add.parent().unwrap();
-
-		if !parent.exists() {
-			fsdir::create_all(parent, false).unwrap();
-		}
-
-		fs::write(to_add, contents).unwrap();
-	}
-
-	for path in without {
-		let to_remove = dir.path().join(path);
-
-		if to_remove.is_dir() {
-			fs::remove_dir_all(to_remove).unwrap();
-		} else {
-			fs::remove_file(to_remove).unwrap();
-		}
-	}
-
+	let dir = Fixture::custom(with, without);
 	let package = Package::try_from(PathBuf::from(dir.path()));
 
 	(package, dir)
@@ -112,7 +78,7 @@ mod archive {
 
 	#[test]
 	fn creates_a_file_on_provided_dir() {
-		let cwd = TempDir::new().unwrap();
+		let cwd = helpers::tempdir();
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
 
@@ -124,7 +90,7 @@ mod archive {
 
 	#[test]
 	fn creates_archive_with_spec_info() {
-		let cwd = TempDir::new().unwrap();
+		let cwd = helpers::tempdir();
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
 		let name = format!("{}_{}", package.spec.name, package.spec.version);
@@ -148,7 +114,7 @@ mod compile {
 		#[test]
 		fn renders_with_null() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
 				vec!["example.json", "schema.json"],
 			);
 			let package = package.unwrap();
@@ -165,7 +131,7 @@ mod compile {
 			);
 
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -181,7 +147,7 @@ mod compile {
 			let input: Value = helpers::json(r#"{ "database": null }"#);
 
 			let (root, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -227,7 +193,7 @@ mod compile {
 						"local valid = import './input/entry.jsonnet'; valid",
 					),
 					("templates/input/entry.jsonnet", "import '../input.jsonnet'"),
-					("templates/input.jsonnet", "(import 'kct.io').input"),
+					("templates/input.jsonnet", "(import 'kct.libsonnet').input"),
 				],
 				vec![],
 			);
@@ -249,7 +215,7 @@ mod compile {
 						"local valid = import './input/entry.jsonnet'; valid",
 					),
 					("templates/input/entry.jsonnet", "import 'input.jsonnet'"),
-					("templates/input.jsonnet", "(import 'kct.io').input"),
+					("templates/input.jsonnet", "(import 'kct.libsonnet').input"),
 				],
 				vec![],
 			);
@@ -273,7 +239,7 @@ mod compile {
 					),
 					(
 						"vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet",
-						"(import 'kct.io').input",
+						"(import 'kct.libsonnet').input",
 					),
 				],
 				vec![],
@@ -296,7 +262,7 @@ mod compile {
 					),
 					(
 						"vendor/ksonnet/ksonnet.beta.4/k8s.libjsonnet",
-						"(import 'kct.io').input",
+						"(import 'kct.libsonnet').input",
 					),
 					(
 						"lib/k.libjsonnet",
@@ -322,13 +288,13 @@ mod compile {
 			let (package, _dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').files('database.toml')",
+					"(import 'kct.libsonnet').files('database.toml')",
 				)],
 				vec![],
 			);
 			let package = package.unwrap();
 			let input = package.example.clone().unwrap();
-			let template = helpers::template(&Fixture::contents("kcp/files/database.toml"), &input);
+			let template = helpers::template(&Fixture::contents("files/database.toml"), &input);
 			let rendered = package.compile(Some(input), None);
 
 			assert_eq!(rendered.unwrap(), Value::String(template));
@@ -339,17 +305,16 @@ mod compile {
 			let (package, _dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').files('**/*.toml')",
+					"(import 'kct.libsonnet').files('**/*.toml')",
 				)],
 				vec![],
 			);
 			let package = package.unwrap();
 			let input = package.example.clone().unwrap();
 
-			let db_template =
-				helpers::template(&Fixture::contents("kcp/files/database.toml"), &input);
+			let db_template = helpers::template(&Fixture::contents("files/database.toml"), &input);
 			let evt_template =
-				helpers::template(&Fixture::contents("kcp/files/events/settings.toml"), &input);
+				helpers::template(&Fixture::contents("files/events/settings.toml"), &input);
 
 			let rendered = compile_with_example(package, None);
 
@@ -368,7 +333,7 @@ mod compile {
 			let (package, _dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').files('invalid.ini')",
+					"(import 'kct.libsonnet').files('invalid.ini')",
 				)],
 				vec![],
 			);
@@ -387,14 +352,14 @@ mod compile {
 			let (package, _dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').files('no-params.txt')",
+					"(import 'kct.libsonnet').files('no-params.txt')",
 				)],
 				vec!["example.json", "schema.json"],
 			);
 			let package = package.unwrap();
 
 			let template = helpers::template(
-				&Fixture::contents("kcp/files/no-params.txt"),
+				&Fixture::contents("files/no-params.txt"),
 				&Value::Object(Map::new()),
 			);
 
@@ -423,7 +388,7 @@ mod compile {
 			let (package, _dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').files('*.json')",
+					"(import 'kct.libsonnet').files('*.json')",
 				)],
 				vec![],
 			);
@@ -447,7 +412,7 @@ mod compile {
 				name: String::from("rc"),
 			};
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').name")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').name")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -466,7 +431,7 @@ mod compile {
 				name: String::from("rc"),
 			};
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').release")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').release")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -486,7 +451,7 @@ mod compile {
 		#[test]
 		fn is_injected_on_global() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').package")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').package")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -505,7 +470,7 @@ mod compile {
 		#[test]
 		fn is_default_installation_name() {
 			let (package, _dir) = package(
-				vec![("templates/main.jsonnet", "(import 'kct.io').name")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').name")],
 				vec![],
 			);
 			let package = package.unwrap();
@@ -541,20 +506,20 @@ mod compile {
 			let (root, dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').include('sub', (import 'kct.io').input)",
+					"(import 'kct.libsonnet').include('sub', (import 'kct.libsonnet').input)",
 				)],
 				vec![],
 			);
 			subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
 				vec![],
 			);
 			let package = root.unwrap();
 			let rendered = compile_with_example(package, None);
 
-			let result = helpers::json(&Fixture::contents("kcp/example.json"));
+			let result = helpers::json(&Fixture::contents("example.json"));
 
 			assert_eq!(rendered.unwrap(), result);
 		}
@@ -569,14 +534,14 @@ mod compile {
 			let (root, dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').include('sub', { database: null })",
+					"(import 'kct.libsonnet').include('sub', { database: null })",
 				)],
 				vec![],
 			);
 			let _archive = subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "(import 'kct.io').input")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -598,14 +563,14 @@ mod compile {
 			let (root, dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').include('sub', (import 'kct.io').input)",
+					"(import 'kct.libsonnet').include('sub', (import 'kct.libsonnet').input)",
 				)],
 				vec![],
 			);
 			let _archive = subpackage(
 				&dir,
 				"sub",
-				vec![("templates/main.jsonnet", "(import 'kct.io').release")],
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').release")],
 				vec![],
 			);
 			let package = root.unwrap();
@@ -622,7 +587,7 @@ mod compile {
 			let (root, dir) = package(
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').include('dep', (import 'kct.io').input)",
+					"(import 'kct.libsonnet').include('dep', (import 'kct.libsonnet').input)",
 				)],
 				vec![],
 			);
@@ -631,7 +596,7 @@ mod compile {
 				"dep",
 				vec![(
 					"templates/main.jsonnet",
-					"(import 'kct.io').include('transient', (import 'kct.io').input)",
+					"(import 'kct.libsonnet').include('transient', (import 'kct.libsonnet').input)",
 				)],
 				vec![],
 			);

@@ -1,4 +1,4 @@
-local _ = import 'kct.io';
+local _ = import 'kct.libsonnet';
 
 {
 	apiVersion: "apps/v1",

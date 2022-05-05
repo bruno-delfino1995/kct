@@ -5,49 +5,8 @@ use std::any::Any;
 use std::borrow::Borrow;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
-
-pub struct StaticImportResolver {
-	pub path: PathBuf,
-	pub contents: String,
-}
-
-impl StaticImportResolver {
-	fn is_same(&self, path: &Path) -> bool {
-		path == self.path
-	}
-}
-
-impl ImportResolver for StaticImportResolver {
-	fn resolve_file(
-		&self,
-		from: &PathBuf,
-		path: &PathBuf,
-	) -> jrsonnet_evaluator::error::Result<Rc<PathBuf>> {
-		if self.is_same(path) {
-			Ok(Rc::new(path.clone()))
-		} else {
-			let error = JrError::ImportFileNotFound(from.clone(), path.clone()).into();
-
-			Err(error)
-		}
-	}
-
-	fn load_file_contents(&self, path: &PathBuf) -> jrsonnet_evaluator::error::Result<IStr> {
-		if self.is_same(path) {
-			Ok(self.contents.clone().into())
-		} else {
-			let error = JrError::ResolvedFileNotFound(path.clone()).into();
-
-			Err(error)
-		}
-	}
-
-	unsafe fn as_any(&self) -> &dyn Any {
-		panic!("this resolver can't be used as any")
-	}
-}
 
 #[derive(Default)]
 pub struct LibImportResolver {

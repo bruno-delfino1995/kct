@@ -19,10 +19,8 @@ use jrsonnet_evaluator::{
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::From;
-use std::path::PathBuf;
 use std::rc::Rc;
 
-pub const LIB_CODE: &str = include_str!("lib.libsonnet");
 pub const VARS_PREFIX: &str = "kct.io";
 
 pub trait Validator: Fn(&Compiler) -> bool {}
@@ -137,19 +135,13 @@ impl Compiler {
 		let vendor = self.workspace.vendor().to_path_buf();
 		let lib = self.workspace.lib().to_path_buf();
 
-		let sdk_resolver = Box::new(StaticImportResolver {
-			path: PathBuf::from(VARS_PREFIX),
-			contents: String::from(LIB_CODE),
-		});
-
 		let relative_resolver = Box::new(RelativeImportResolver);
 
 		let lib_resolver = Box::new(LibImportResolver {
-			library_paths: vec![vendor, lib],
+			library_paths: vec![lib, vendor],
 		});
 
 		let resolver = AggregatedImportResolver::default()
-			.push(sdk_resolver)
 			.push(relative_resolver)
 			.push(lib_resolver);
 

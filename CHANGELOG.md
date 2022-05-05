@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `kct.io` library for the current environment, previously global `_`
+- `kct.io` external variable for the current environment, previously global `_`
+- `kct.libsonnet` to export things from `kct.io` more easily along with a future std
 
 ### Changed
 
