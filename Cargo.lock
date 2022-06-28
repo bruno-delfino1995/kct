@@ -500,6 +500,7 @@ dependencies = [
 name = "kct_kube"
 version = "0.4.0"
 dependencies = [
+ "kct_testing",
  "lazy_static",
  "regex",
  "serde",

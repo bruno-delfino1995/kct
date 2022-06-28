@@ -1,7 +1,10 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+	cmp::Ordering,
+	path::{Path, PathBuf},
+};
 use thiserror::Error;
 use valico::json_schema::Scope;
 
@@ -32,13 +35,169 @@ impl Filter {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Track {
+	pub field: String,
+	pub depth: usize,
+	pub order: usize,
+}
+
+impl ToString for Track {
+	fn to_string(&self) -> String {
+		format!("{}:{}:{}", self.field, self.depth, self.order)
+	}
+}
+
+impl TryFrom<&str> for Track {
+	type Error = Error;
+
+	fn try_from(source: &str) -> std::result::Result<Self, Self::Error> {
+		let parts: Vec<String> = source.split(':').map(String::from).collect();
+
+		let field = parts.get(0).map(String::from).ok_or(Error::Invalid)?;
+		let depth = parts
+			.get(1)
+			.map(|d| d.parse())
+			.transpose()
+			.map_err(|_| Error::Invalid)
+			.and_then(|n| n.ok_or(Error::Invalid))?;
+		let order = parts
+			.get(2)
+			.map(|d| d.parse())
+			.transpose()
+			.map_err(|_| Error::Invalid)
+			.and_then(|n| n.ok_or(Error::Invalid))?;
+
+		Ok(Track {
+			field,
+			depth,
+			order,
+		})
+	}
+}
+
+impl Ord for Track {
+	fn cmp(&self, other: &Self) -> Ordering {
+		match (self.order.cmp(&other.order), self.field.cmp(&other.field)) {
+			(Ordering::Equal, ord) => ord,
+			(ord, _) => ord,
+		}
+	}
+}
+
+impl PartialOrd for Track {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct Tracking(Vec<Track>);
+
+impl Tracking {
+	fn depth(&self) -> usize {
+		let vec = &self.0;
+		let index = vec.len().saturating_sub(1);
+
+		vec.get(index).map(|t| t.depth).unwrap_or(0)
+	}
+
+	fn track(&self, track: Track) -> Self {
+		let mut new = self.0.clone();
+		new.push(track);
+
+		Tracking(new)
+	}
+
+	fn ordered(self, order: Order) -> Self {
+		let mut ordered: Vec<Track> = vec![];
+		let length = self.0.len();
+
+		let mut paths = self.0.into_iter().rev().peekable();
+		let mut orders = order.0.into_iter().peekable();
+
+		let mut ordered = loop {
+			match (paths.peek(), orders.peek()) {
+				(None, _) => {
+					break ordered;
+				}
+				(Some(p), None) => {
+					ordered.push(p.clone());
+					paths.next();
+				}
+				(Some(p), Some(o)) => {
+					let same_field = o.field == p.field;
+					let same_depth = (length - o.depth) == p.depth;
+
+					let track = if same_field && same_depth {
+						let track = Track {
+							field: p.field.clone(),
+							depth: p.depth,
+							order: o.order,
+						};
+
+						orders.next();
+
+						track
+					} else {
+						p.clone()
+					};
+
+					ordered.push(track);
+					paths.next();
+				}
+			};
+		};
+
+		ordered.reverse();
+		Self(ordered)
+	}
+}
+
+impl From<&Tracking> for PathBuf {
+	fn from(source: &Tracking) -> Self {
+		let mut root = PathBuf::from("/");
+
+		for t in source.0.iter() {
+			root.push(t.field.clone());
+		}
+
+		root
+	}
+}
+
+#[derive(Debug, Default)]
+struct Order(Vec<Track>);
+
+impl TryFrom<&Value> for Order {
+	type Error = Error;
+
+	fn try_from(value: &Value) -> std::result::Result<Self, Self::Error> {
+		let annotation = value
+			.get("metadata")
+			.and_then(|m| m.get("annotations"))
+			.and_then(|a| a.get("kct.io/order"))
+			.and_then(|o| o.as_str())
+			.unwrap_or_default();
+
+		let tracking = annotation
+			.split('/')
+			.into_iter()
+			.filter(|s| !s.is_empty())
+			.map(Track::try_from)
+			.collect::<std::result::Result<Vec<Track>, Self::Error>>()?;
+
+		Ok(Order(tracking))
+	}
+}
+
 pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
-	let mut objects = vec![];
-	let mut walker: Vec<Box<dyn Iterator<Item = (PathBuf, &Value)>>> =
-		vec![Box::new(vec![(PathBuf::from("/"), json)].into_iter())];
+	let mut objects: Vec<(Tracking, Value)> = vec![];
+	let mut walker: Vec<Box<dyn Iterator<Item = (Tracking, &Value)>>> =
+		vec![Box::new(vec![(Tracking::default(), json)].into_iter())];
 
 	while let Some(curr) = walker.last_mut() {
-		let (base, json) = match curr.next() {
+		let (tracking, json) = match curr.next() {
 			Some(val) => val,
 			None => {
 				walker.pop();
@@ -47,22 +206,30 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 		};
 
 		if is_object(json) {
-			if filter.pass(&base) {
-				objects.push((base, json.to_owned()));
+			let path: PathBuf = (&tracking).into();
+
+			if filter.pass(&path) {
+				let order = Order::try_from(json)?;
+				let tracking = tracking.ordered(order);
+
+				objects.push((tracking, json.to_owned()));
 			}
 		} else {
 			match json {
 				Value::Object(map) => {
-					let mut members: Vec<(PathBuf, &Value)> = Vec::with_capacity(map.len());
+					let mut members: Vec<(Tracking, &Value)> = Vec::with_capacity(map.len());
 
 					for (k, v) in map {
 						if !is_valid_path(k) {
 							return Err(Error::Invalid);
 						} else {
-							let mut path = base.clone();
-							path.push(k);
+							let track = Track {
+								field: k.clone(),
+								depth: tracking.depth() + 1,
+								order: map.len(),
+							};
 
-							members.push((path, v))
+							members.push((tracking.track(track), v))
 						}
 					}
 
@@ -73,7 +240,9 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 		}
 	}
 
-	Ok(objects)
+	objects.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+	Ok(objects.into_iter().map(|(t, v)| ((&t).into(), v)).collect())
 }
 
 const K8S_OBJECT_SCHEMA: &str = r#"{

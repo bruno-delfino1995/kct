@@ -1,18 +1,21 @@
 use kct_kube::{Error, Filter, Result};
+use kct_testing::compile;
+use serde_json::json;
 use serde_json::Value;
 use std::iter;
 use std::path::PathBuf;
 
-const MINIMAL_OBJECT: &str = r#"{
-	"kind": "Deployment",
-	"apiVersion": "apps/v1"
-}"#;
+fn obj() -> Value {
+	json!({
+		"kind": "Deployment",
+		"apiVersion": "apps/v1"
+	})
+}
 
 type Return = Result<Vec<(PathBuf, Value)>>;
 
-fn find_from(text: &str) -> Return {
-	let val: Value = serde_json::from_str(text).unwrap();
-	kct_kube::find(&val, &Filter::default())
+fn find_from(val: &Value) -> Return {
+	kct_kube::find(val, &Filter::default())
 }
 
 fn assert_invalid(err: Return) {
@@ -23,15 +26,15 @@ fn assert_invalid(err: Return) {
 fn assert_objects(ok: Return, times: usize) {
 	assert!(ok.is_ok());
 
-	let object = serde_json::from_str(MINIMAL_OBJECT).unwrap();
-	let objects: Vec<Value> = iter::repeat(object).take(times).collect();
+	let obj = obj();
+	let objs: Vec<Value> = iter::repeat(obj).take(times).collect();
 
 	let rendered: Vec<Value> = ok
 		.unwrap()
 		.into_iter()
 		.map(|(_path, value)| value)
 		.collect();
-	assert_eq!(rendered, objects)
+	assert_eq!(rendered, objs)
 }
 
 fn assert_paths(ok: Return, paths: Vec<&str>) {
@@ -42,23 +45,44 @@ fn assert_paths(ok: Return, paths: Vec<&str>) {
 	assert_eq!(rendered, paths)
 }
 
+fn render(contents: &str) -> Value {
+	let main = format!(
+		r#"
+		local _ = import 'kct.libsonnet';
+		local sdk = _.sdk;
+        local obj() = {{
+			kind: "Deployment",
+			apiVersion: "apps/v1",
+		}};
+
+		{}
+	"#,
+		contents
+	);
+
+	compile(main.as_str())
+}
+
 mod objects {
-	use crate::{assert_invalid, assert_objects, find_from, MINIMAL_OBJECT};
+	use super::*;
 
 	#[test]
 	fn finds_objects() {
-		let json = MINIMAL_OBJECT;
-		let found = find_from(json);
+		let json = obj();
+		let found = find_from(&json);
 		assert_objects(found, 1);
 
-		let json = format!(r#"{{"a":{0}, "b":{0}}}"#, MINIMAL_OBJECT);
+		let json = json!({"a": obj(), "b": obj()});
 		let found = find_from(&json);
 		assert_objects(found, 2);
 
-		let json = format!(
-			r#"{{"a":{{ "b": {0}, "c": {{ "d": {0}}}, "e": {0}}}}}"#,
-			MINIMAL_OBJECT
-		);
+		let json = json!({
+			"a": {
+				"b": obj(),
+				"c": {"d": obj()},
+				"e": obj()
+			}
+		});
 		let found = find_from(&json);
 		assert_objects(found, 3);
 	}
@@ -66,18 +90,15 @@ mod objects {
 	#[test]
 	fn disallow_primitives() {
 		let values = [
-			"0",
-			"\"object\"",
-			"null",
-			&format!(r#"{{ "a":1,"b":{0} }}"#, MINIMAL_OBJECT),
-			&format!(
-				r#"{{ "a":{{ "b":{{ "c":null,"d":{0} }} }} }}"#,
-				MINIMAL_OBJECT
-			),
-			&format!(r#"{{ "a":{{ "b":{0} }}, "c": "str" }}"#, MINIMAL_OBJECT),
+			json!(0),
+			json!("obj"),
+			json!(null),
+			json!({"a": 1, "b": obj()}),
+			json!({"a": {"b":{"c": null,"d": obj()}}}),
+			json!({"a": {"b": obj()}, "c": "str"}),
 		];
 
-		for &json in values.iter() {
+		for json in values.iter() {
 			let found = find_from(json);
 			assert_invalid(found);
 		}
@@ -85,34 +106,25 @@ mod objects {
 }
 
 mod paths {
-	use crate::{assert_invalid, assert_paths, find_from, MINIMAL_OBJECT};
+	use super::*;
 
 	#[test]
 	fn uses_prop_names_as_paths() {
-		let json = format!(
-			r#"{{"a":{{"b": {0}}}, "c": {{"d":{{"e":{0}}}}}, "b": {0}}}"#,
-			MINIMAL_OBJECT
-		);
+		let json = json!({"a": {"b": obj()}, "c": {"d": {"e":obj()}}, "b": obj()});
 		let found = find_from(&json);
 
 		assert_paths(found, vec!["/a/b", "/b", "/c/d/e"])
 	}
 
 	#[test]
-	// https://github.com/CertainLach/jrsonnet/issues/52#issuecomment-878944237
 	fn orders_props_alphabetically() {
-		let json = format!(
-			r#"{{"z": {0}, "1": {0}, "01": {0}, "10": {0}, "2": {0}, "a": {0}}}"#,
-			MINIMAL_OBJECT
-		);
+		let json =
+			json!({"z": obj(), "1": obj(), "01": obj(), "10": obj(), "2": obj(), "a": obj()});
 		let found = find_from(&json);
 
 		assert_paths(found, vec!["/01", "/1", "/10", "/2", "/a", "/z"]);
 
-		let json = format!(
-			r#"{{"a": {{"c": {0}, "b": {0}}}, "c": {0}, "b": {{"z": {0}, "01": {0}, "a": {0}, "0": {0}}}}}"#,
-			MINIMAL_OBJECT
-		);
+		let json = json!({"a": {"c": obj(), "b": obj()}, "c": obj(), "b": {"z": obj(), "01": obj(), "a": obj(), "0": obj()}});
 		let found = find_from(&json);
 
 		assert_paths(
@@ -122,55 +134,168 @@ mod paths {
 	}
 
 	#[test]
+	fn orders_props_by_annotation() {
+		let mut cases = vec![];
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['a'], {
+					a: sdk.inOrder(['b'], {b: sdk.inOrder(['c'], {c: sdk.inOrder(['d'], {d: sdk.inOrder(['e'], {e: sdk.inOrder(['g', 'f'], {f: obj(), g: obj()})})})})}),
+				})"#
+			),
+			vec!["/a/b/c/d/e/g", "/a/b/c/d/e/f"]
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['b', 'a'], {
+					a: obj(),
+					b: obj()
+				})"#,
+			),
+			vec!["/b", "/a"],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['b'], {
+					a: obj(),
+					b: obj(),
+					c: obj()
+				})"#,
+			),
+			vec!["/b", "/a", "/c"],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['e', 'a'], {
+					a: sdk.inOrder(['b','d','c'], {b: obj(), c: obj(), d: obj()}),
+					e: sdk.inOrder(['h', 'g', 'f'], {f: obj(), g: obj(), h: obj()})
+				})"#,
+			),
+			vec!["/e/h", "/e/g", "/e/f", "/a/b", "/a/d", "/a/c"],
+		));
+
+		cases.push((
+			render(
+				r#"{
+					a: sdk.inOrder(['c', 'b'], {b: obj(), c: obj()}),
+					d: sdk.inOrder(['e', 'f', 'i'], {
+						e: obj(),
+						f: sdk.inOrder(['h', 'g'], {g: obj(), h: obj()}),
+						i: obj()
+					})
+				}"#,
+			),
+			vec!["/a/c", "/a/b", "/d/e", "/d/f/h", "/d/f/g", "/d/i"],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['b', 'a'], {
+					a: sdk.inOrder(['b'], {b: {c: {b: sdk.inOrder(['d'], {d: {a: obj()}, c: obj()})}}, a: obj()}),
+					b: { d: {d: sdk.inOrder(['d'], {c: sdk.inOrder(['c'], {c: {a: obj()}, a: obj()}), d: obj()})}}
+				})"#,
+			),
+			vec![
+				"/b/d/d/d",
+				"/b/d/d/c/c/a",
+				"/b/d/d/c/a",
+				"/a/b/c/b/d/a",
+				"/a/b/c/b/c",
+				"/a/a",
+			],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['y', 'x'], {
+					x: sdk.inOrder(['b', 'a'], {
+						a: obj(),
+						b: sdk.inOrder(['k','c'], {
+							c: obj(),
+							d: sdk.inOrder(['e', 'h', 'g'], {
+								e: {f: obj()},
+								g: obj(),
+								h: sdk.inOrder(['j', 'i'], {i: obj(), j: obj()})
+							}),
+							k: obj(),
+							l: {m: obj()}
+						})
+					}),
+					y: obj()
+				})"#,
+			),
+			vec![
+				"/y",
+				"/x/b/k",
+				"/x/b/c",
+				"/x/b/d/e/f",
+				"/x/b/d/h/j",
+				"/x/b/d/h/i",
+				"/x/b/d/g",
+				"/x/b/l/m",
+				"/x/a",
+			],
+		));
+
+		for (json, order) in cases {
+			let found = find_from(&json);
+			assert_paths(found, order);
+		}
+	}
+
+	#[test]
 	fn allows_only_valid_and_clear_path_segments() {
-		let json = format!(r#"{{"01-object": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "01-obj": obj() });
 		let found = find_from(&json);
-		assert_paths(found, vec!["/01-object"]);
+		assert_paths(found, vec!["/01-obj"]);
 
-		let json = format!(r#"{{"/": {0}}}"#, MINIMAL_OBJECT);
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = format!(r#"{{"a/b": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "/": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{".": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "a/b": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"..": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ ".": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"some%thing": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "..": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"this.complicates.filtering": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "some%thing": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"-start-alphanumeric": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "this.complicates.filtering": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"end-alphanumeric-": {0}}}"#, MINIMAL_OBJECT);
+		let json = json!({ "-start-alphanumeric": obj() });
+		let found = find_from(&json);
+		assert_invalid(found);
+
+		let json = json!({ "end-alphanumeric-": obj() });
 		let found = find_from(&json);
 		assert_invalid(found);
 	}
 
 	#[test]
 	fn disallow_unclear_paths() {
-		let json = format!("[{0}, {0}]", MINIMAL_OBJECT);
+		let json = json!([obj(), obj()]);
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"a":{0}, "b":[{0}, {0}]}}"#, MINIMAL_OBJECT);
+		let json = json!({"a": obj(), "b": [obj(), obj()]});
 		let found = find_from(&json);
 		assert_invalid(found);
 
-		let json = format!(r#"{{"a":{{ "b": {0}, "c": [{0}, {0}]}}}}"#, MINIMAL_OBJECT);
+		let json = json!({"a": {"b": obj(), "c": [obj(), obj()]}});
 		let found = find_from(&json);
 		assert_invalid(found);
 	}
@@ -180,16 +305,12 @@ mod filter {
 	use super::*;
 
 	fn find_within_minimal(filter: &Filter) -> Return {
-		let val = serde_json::from_str(MINIMAL_OBJECT).unwrap();
-		kct_kube::find(&val, filter)
+		kct_kube::find(&obj(), filter)
 	}
 
 	fn find_within_complex(filter: &Filter) -> Return {
-		let complex: Value = serde_json::from_str(&format!(
-			r#"{{ "a": {{ "b": {0}, "c": {{ "d": {0}, "e": {0} }}, "f": {0} }}, "g": {0} }}"#,
-			MINIMAL_OBJECT
-		))
-		.unwrap();
+		let complex =
+			json!({"a": {"b": obj(), "c": {"d": obj(), "e": obj()}, "f": obj()}, "g": obj()});
 
 		kct_kube::find(&complex, filter)
 	}

@@ -10,5 +10,6 @@ local include = std.extVar("kct.io/include");
 	package: package,
 	release: release,
 	files: files,
-	include: include
+	include: include,
+	sdk: import 'sdk.libsonnet',
 }
