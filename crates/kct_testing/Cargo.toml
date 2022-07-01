@@ -1,0 +1,16 @@
+[package]
+name = "kct_testing"
+version = "0.4.0"
+authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
+description = "KCT testing utilities"
+repository = "https://github.com/bruno-delfino1995/kct"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+fs_extra = "1.2.0"
+kct_package = { path = "../kct_package", version = "^0.4.0"}
+serde = "1.0.115"
+serde_json = "1.0"
+tempfile = "3.1.0"
+tera = "1"

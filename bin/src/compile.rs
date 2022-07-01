@@ -39,7 +39,7 @@ pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
 
 	let output = ensure_output_exists(&args.output)?;
 
-	let package = Package::try_from(args.package)?;
+	let package = Package::try_from(args.package.as_path())?;
 
 	let release = args.release.map(|name| Release { name });
 

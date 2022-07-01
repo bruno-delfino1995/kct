@@ -513,22 +513,33 @@ name = "kct_package"
 version = "0.4.0"
 dependencies = [
  "flate2",
- "fs_extra",
  "globwalk",
  "jrsonnet-evaluator",
  "jrsonnet-interner",
  "jrsonnet-parser",
  "kct_helper",
+ "kct_testing",
  "rustc-hash",
  "semver",
  "serde",
  "serde_json",
  "tar",
- "tempfile",
  "tera",
  "thiserror",
  "url",
  "valico",
+]
+
+[[package]]
+name = "kct_testing"
+version = "0.4.0"
+dependencies = [
+ "fs_extra",
+ "kct_package",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tera",
 ]
 
 [[package]]

@@ -3,6 +3,7 @@
 members = [
 	"bin",
 	"crates/kct_helper",
+	"crates/kct_testing",
 	"crates/kct_kube",
 	"crates/kct_package"
 ]

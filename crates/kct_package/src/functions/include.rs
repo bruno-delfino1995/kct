@@ -28,7 +28,7 @@ impl Property for Include {
 			};
 
 			let root = vendor.join(&package);
-			let package = Package::try_from(root).map_err(|err| err.to_string())?;
+			let package = Package::try_from(root.as_path()).map_err(|err| err.to_string())?;
 
 			let input: Option<Value> = params.get("input").cloned();
 

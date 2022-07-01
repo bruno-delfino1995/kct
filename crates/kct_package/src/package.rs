@@ -32,10 +32,12 @@ pub struct Package {
 	pub example: Option<Value>,
 }
 
-impl TryFrom<PathBuf> for Package {
+impl TryFrom<&Path> for Package {
 	type Error = Error;
 
-	fn try_from(root: PathBuf) -> Result<Self> {
+	fn try_from(root: &Path) -> Result<Self> {
+		let root = PathBuf::from(root);
+
 		let spec = {
 			let mut path = root.clone();
 			path.push(SPEC_FILE);

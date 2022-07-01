@@ -1,17 +1,14 @@
-mod helpers;
-
-use crate::helpers::Fixture;
+use kct_testing::{self as testing, dir::TempDir, Fixture};
 
 use kct_package::{Error, Package, Release};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 use std::convert::TryFrom;
 use std::panic::panic_any;
 use std::path::PathBuf;
-use tempfile::TempDir;
 
 fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Error>, TempDir) {
 	let dir = Fixture::custom(with, without);
-	let package = Package::try_from(PathBuf::from(dir.path()));
+	let package = Package::try_from(dir.path());
 
 	(package, dir)
 }
@@ -78,7 +75,7 @@ mod archive {
 
 	#[test]
 	fn creates_a_file_on_provided_dir() {
-		let cwd = helpers::tempdir();
+		let cwd = testing::dir::tmp();
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
 
@@ -90,7 +87,7 @@ mod archive {
 
 	#[test]
 	fn creates_archive_with_spec_info() {
-		let cwd = helpers::tempdir();
+		let cwd = testing::dir::tmp();
 		let (package, _dir) = package(vec![], vec![]);
 		let package = package.unwrap();
 		let name = format!("{}_{}", package.spec.name, package.spec.version);
@@ -126,7 +123,7 @@ mod compile {
 
 		#[test]
 		fn doesnt_merge_input_with_defaults() {
-			let input: Value = helpers::json(
+			let input: Value = testing::json(
 				r#"{ "database": { "port": 5432, "host": "localhost", "credentials": { "user": "admin", "pass": "admin" } } }"#,
 			);
 
@@ -144,7 +141,7 @@ mod compile {
 		#[test]
 		#[should_panic(expected = "input provided doesn't match the schema")]
 		fn validate_input() {
-			let input: Value = helpers::json(r#"{ "database": null }"#);
+			let input: Value = testing::json(r#"{ "database": null }"#);
 
 			let (root, _dir) = package(
 				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
@@ -294,7 +291,7 @@ mod compile {
 			);
 			let package = package.unwrap();
 			let input = package.example.clone().unwrap();
-			let template = helpers::template(&Fixture::contents("files/database.toml"), &input);
+			let template = testing::template(&Fixture::contents("files/database.toml"), &input);
 			let rendered = package.compile(Some(input), None);
 
 			assert_eq!(rendered.unwrap(), Value::String(template));
@@ -312,9 +309,9 @@ mod compile {
 			let package = package.unwrap();
 			let input = package.example.clone().unwrap();
 
-			let db_template = helpers::template(&Fixture::contents("files/database.toml"), &input);
+			let db_template = testing::template(&Fixture::contents("files/database.toml"), &input);
 			let evt_template =
-				helpers::template(&Fixture::contents("files/events/settings.toml"), &input);
+				testing::template(&Fixture::contents("files/events/settings.toml"), &input);
 
 			let rendered = compile_with_example(package, None);
 
@@ -358,7 +355,7 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let template = helpers::template(
+			let template = testing::template(
 				&Fixture::contents("files/no-params.txt"),
 				&Value::Object(Map::new()),
 			);
@@ -417,12 +414,10 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let json = format!(r#""{}-{}""#, release.name, package.spec.name);
+			let json = json!(format!("{}-{}", release.name, package.spec.name));
 			let rendered = compile_with_example(package, Some(release));
 
-			let result = helpers::json(&json);
-
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), json);
 		}
 
 		#[test]
@@ -436,12 +431,10 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let json = format!(r#"{{ "name": "{0}" }}"#, release.name);
+			let json = json!({ "name": release.name });
 			let rendered = compile_with_example(package, Some(release));
 
-			let result = helpers::json(&json);
-
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), json);
 		}
 	}
 
@@ -456,15 +449,13 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let json = format!(
-				r#"{{ "name": "{}", "version": "{}" }}"#,
-				package.spec.name, package.spec.version
-			);
+			let json = json!({
+				"name": package.spec.name,
+				"version": package.spec.version.to_string()
+			});
 			let rendered = compile_with_example(package, None);
 
-			let result = helpers::json(&json);
-
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), json);
 		}
 
 		#[test]
@@ -475,12 +466,10 @@ mod compile {
 			);
 			let package = package.unwrap();
 
-			let json = format!(r#""{}""#, package.spec.name);
+			let json = json!(package.spec.name);
 			let rendered = compile_with_example(package, None);
 
-			let result = helpers::json(&json);
-
-			assert_eq!(rendered.unwrap(), result);
+			assert_eq!(rendered.unwrap(), json);
 		}
 	}
 
@@ -488,17 +477,11 @@ mod compile {
 		use super::*;
 
 		fn subpackage(dir: &TempDir, name: &str, with: Vec<(&str, &str)>, without: Vec<&str>) {
-			use fs_extra::dir::{create_all, move_dir, CopyOptions};
 			let (_package, source) = package(with, without);
 
 			let path = dir.path().join("vendor").join(name);
-			create_all(&path, true)
-				.expect("Failed to create subpackage directory as vendor of parent");
-
-			let mut options = CopyOptions::new();
-			options.content_only = true;
-			move_dir(source.into_path(), path, &options)
-				.expect("Failed to move subpackage into parent");
+			testing::dir::mk(&path);
+			testing::dir::mv(&source.into_path(), &path)
 		}
 
 		#[test]
@@ -519,7 +502,7 @@ mod compile {
 			let package = root.unwrap();
 			let rendered = compile_with_example(package, None);
 
-			let result = helpers::json(&Fixture::contents("example.json"));
+			let result = testing::json(&Fixture::contents("example.json"));
 
 			assert_eq!(rendered.unwrap(), result);
 		}
@@ -609,7 +592,7 @@ mod compile {
 			let package = root.unwrap();
 			let rendered = compile_with_example(package, None);
 
-			let result = helpers::json(contents);
+			let result = testing::json(contents);
 
 			assert_eq!(rendered.unwrap(), result);
 		}
