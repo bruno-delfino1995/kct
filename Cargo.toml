@@ -7,3 +7,6 @@ members = [
 	"crates/kct_kube",
 	"crates/kct_package"
 ]
+
+[profile.release]
+strip = "debuginfo"

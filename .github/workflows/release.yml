@@ -56,65 +56,68 @@ jobs:
           command: test
           args: --all
 
-  github-release:
+  release:
     needs: [test]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      RUST: stable
-      TARGET: x86_64-unknown-linux-musl
-      BIN: kct
-      NAME: kct-linux-amd64
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
+    strategy:
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
 
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ env.RUST }}
-          override: true
-          target: ${{ env.TARGET }}
+          - i686-pc-windows-msvc
+          - i686-unknown-linux-gnu
+          - i686-unknown-linux-musl
 
-      - name: Cache cargo dependencies
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          - x86_64-apple-darwin
+          - x86_64-pc-windows-msvc
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+        include:
+          - target: aarch64-apple-darwin
+            os: macOS-latest
+            bin: kct
+            name: kct-darwin-aarch64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            bin: kct
+            name: kct-linux-gnu-aarch64
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            bin: kct
+            name: kct-linux-musl-aarch64
 
-      - name: Run build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --bin=kct --release --target ${{ env.TARGET }}
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+            bin: kct.exe
+            name: kct-windows-msvc-i686.exe
+          - target: i686-unknown-linux-gnu
+            os: ubuntu-latest
+            bin: kct
+            name: kct-linux-gnu-i686
+          - target: i686-unknown-linux-musl
+            os: ubuntu-latest
+            bin: kct
+            name: kct-linux-musl-i686
 
-      - name: Create packages
-        shell: bash
-        run: |
-          strip target/${{ env.TARGET }}/release/${{ env.BIN }}
-          cd target/${{ env.TARGET }}/release
-
-          cp ${{ env.BIN }} ../../../${{ env.NAME }}
-          cd -
-
-      - name: Generate SHA-256
-        run: shasum -a 256 ${{ env.NAME }} > ${{ env.NAME }}.sha256
-
-      - name: Publish
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          files: "kct*"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  cargo-release:
-    needs: [test]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+          - target: x86_64-apple-darwin
+            os: macOS-latest
+            bin: kct
+            name: kct-darwin-amd64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            bin: kct
+            name: kct-linux-gnu-amd64
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            bin: kct
+            name: kct-linux-musl-amd64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            bin: kct.exe
+            name: kct-windows-msvc-amd64.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -124,6 +127,7 @@ jobs:
         with:
           toolchain: stable
           override: true
+          target: ${{ matrix.target }}
 
       - name: Cache cargo dependencies
         uses: actions/cache@v2
@@ -134,20 +138,50 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install cargo release
+      - name: Linux x86 cross compiler
+        if: ${{ startsWith(matrix.target, 'i686-unknown-linux-') }}
+        run: sudo apt install gcc-multilib
+
+      - name: ARM cross compiler
+        if: ${{ startsWith(matrix.target, 'aarch64-unknown-linux-') }}
         uses: actions-rs/cargo@v1
         with:
           command: install
-          args: cargo-release
+          args: cross
 
-      - name: Run cargo login
+      - name: ARM gcc
+        if: ${{ startsWith(matrix.target, 'aarch64-unknown-linux-') }}
+        run: sudo apt install gcc-aarch64-linux-gnu
+
+      - name: Musl gcc
+        if: ${{ endsWith(matrix.target, '-musl') }}
+        run: sudo apt install musl musl-tools
+
+      - name: Run cross build
+        if: ${{ startsWith(matrix.target, 'aarch64-unknown-linux-') }}
+        shell: bash
+        run: cross build --bin=kct --release --target ${{ matrix.target }}
+
+      - name: Run build
+        if: ${{ !startsWith(matrix.target, 'aarch64-unknown-linux-') }}
         uses: actions-rs/cargo@v1
         with:
-          command: login
-          args: ${{ secrets.CARGO_TOKEN }}
+          command: build
+          args: --bin=kct --release --target ${{ matrix.target }}
 
-      - name: Publish crates
-        uses: actions-rs/cargo@v1
+      - name: Create packages
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          cp ${{ matrix.bin }} ../../../${{ matrix.name }}
+
+      - name: Generate SHA-256
+        run: shasum -a 256 ${{ matrix.name }} > ${{ matrix.name }}.sha256
+
+      - name: Publish
+        uses: softprops/action-gh-release@v1
         with:
-          command: release
-          args: --no-dev-version --skip-push --skip-tag --no-confirm
+          draft: true
+          files: "kct*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

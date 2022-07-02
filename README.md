@@ -10,12 +10,23 @@ KCT is a tool for taming the Kubernetes configuration beast by using Jsonnet whi
 
 ## Installation
 
-There are three ways you can install our tool:
+### Releases
 
-- By adding a binary releases from the [Releases Page](https://github.com/bruno-delfino1995/kct/releases) to your `$PATH`
-- By installing the binary at [crates.io](https://crates.io/crates/kct) with `cargo install kct`
-- Through your prefered package manager for your distro:
-  - Arch user with `yay -S kct`
+We build binaries for most platforms, you can take a look at our [Releases Page](https://github.com/bruno-delfino1995/kct/releases). From there, grab which binary matches your platform and add it to your `$PATH`
+
+### Build from sources
+
+Our minimum supported rust version (MSRV) is the latest stable, and it'll probably stay that way until we think about external extensions. To build it from source, you just need to run:
+
+``` sh
+cargo build --bin=kct --release
+```
+
+And if you have the cargo bin folder on your path, you can install it directly with:
+
+``` sh
+cargo install --path=bin
+```
 
 ## Documentation
 
