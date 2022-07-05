@@ -35,16 +35,99 @@ impl Filter {
 	}
 }
 
+const KIND_ORDER: [&str; 35] = [
+	"Namespace",
+	"NetworkPolicy",
+	"ResourceQuota",
+	"LimitRange",
+	"PodSecurityPolicy",
+	"PodDisruptionBudget",
+	"ServiceAccount",
+	"Secret",
+	"SecretList",
+	"ConfigMap",
+	"StorageClass",
+	"PersistentVolume",
+	"PersistentVolumeClaim",
+	"CustomResourceDefinition",
+	"ClusterRole",
+	"ClusterRoleList",
+	"ClusterRoleBinding",
+	"ClusterRoleBindingList",
+	"Role",
+	"RoleList",
+	"RoleBinding",
+	"RoleBindingList",
+	"Service",
+	"DaemonSet",
+	"Pod",
+	"ReplicationController",
+	"ReplicaSet",
+	"Deployment",
+	"HorizontalPodAutoscaler",
+	"StatefulSet",
+	"Job",
+	"CronJob",
+	"IngressClass",
+	"Ingress",
+	"APIService",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Kind(String);
+
+impl Ord for Kind {
+	fn cmp(&self, other: &Self) -> Ordering {
+		let index_a = KIND_ORDER
+			.iter()
+			.position(|&k| k == self.0)
+			.unwrap_or_else(|| KIND_ORDER.len());
+		let index_b = KIND_ORDER
+			.iter()
+			.position(|&k| k == other.0)
+			.unwrap_or_else(|| KIND_ORDER.len());
+
+		index_a.cmp(&index_b)
+	}
+}
+
+impl PartialOrd for Kind {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl TryFrom<&Value> for Kind {
+	type Error = Error;
+
+	fn try_from(value: &Value) -> std::result::Result<Self, Self::Error> {
+		let kind = value
+			.get("kind")
+			.and_then(|v| v.as_str())
+			.map(|k| k.to_string())
+			.ok_or(Error::Invalid)?;
+
+		Ok(Kind(kind))
+	}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Track {
 	pub field: String,
 	pub depth: usize,
 	pub order: usize,
+	pub kind: Option<Kind>,
 }
 
 impl ToString for Track {
 	fn to_string(&self) -> String {
-		format!("{}:{}:{}", self.field, self.depth, self.order)
+		let kind = self
+			.kind
+			.clone()
+			.map(|k| k.0)
+			.unwrap_or_else(|| String::from("Kind"));
+
+		format!("{}({}:{}:{})", kind, self.field, self.depth, self.order)
 	}
 }
 
@@ -72,15 +155,32 @@ impl TryFrom<&str> for Track {
 			field,
 			depth,
 			order,
+			kind: None,
 		})
 	}
 }
 
 impl Ord for Track {
 	fn cmp(&self, other: &Self) -> Ordering {
-		match (self.order.cmp(&other.order), self.field.cmp(&other.field)) {
-			(Ordering::Equal, ord) => ord,
-			(ord, _) => ord,
+		let first_or_equal = |orders: &[Ordering]| -> Ordering {
+			*orders
+				.iter()
+				.find(|&&o| o != Ordering::Equal)
+				.unwrap_or(&Ordering::Equal)
+		};
+
+		let field = self.field.cmp(&other.field);
+		let depth = self.depth.cmp(&other.depth);
+		let order = self.order.cmp(&other.order);
+		let kind = match (&self.kind, &other.kind) {
+			(Some(a), Some(b)) => a.cmp(b),
+			(_, _) => Ordering::Equal,
+		};
+
+		if depth == Ordering::Equal {
+			first_or_equal(&[order, kind, field])
+		} else {
+			first_or_equal(&[order, field])
 		}
 	}
 }
@@ -88,81 +188,6 @@ impl Ord for Track {
 impl PartialOrd for Track {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
-	}
-}
-
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-struct Tracking(Vec<Track>);
-
-impl Tracking {
-	fn depth(&self) -> usize {
-		let vec = &self.0;
-		let index = vec.len().saturating_sub(1);
-
-		vec.get(index).map(|t| t.depth).unwrap_or(0)
-	}
-
-	fn track(&self, track: Track) -> Self {
-		let mut new = self.0.clone();
-		new.push(track);
-
-		Tracking(new)
-	}
-
-	fn ordered(self, order: Order) -> Self {
-		let mut ordered: Vec<Track> = vec![];
-		let length = self.0.len();
-
-		let mut paths = self.0.into_iter().rev().peekable();
-		let mut orders = order.0.into_iter().peekable();
-
-		let mut ordered = loop {
-			match (paths.peek(), orders.peek()) {
-				(None, _) => {
-					break ordered;
-				}
-				(Some(p), None) => {
-					ordered.push(p.clone());
-					paths.next();
-				}
-				(Some(p), Some(o)) => {
-					let same_field = o.field == p.field;
-					let same_depth = (length - o.depth) == p.depth;
-
-					let track = if same_field && same_depth {
-						let track = Track {
-							field: p.field.clone(),
-							depth: p.depth,
-							order: o.order,
-						};
-
-						orders.next();
-
-						track
-					} else {
-						p.clone()
-					};
-
-					ordered.push(track);
-					paths.next();
-				}
-			};
-		};
-
-		ordered.reverse();
-		Self(ordered)
-	}
-}
-
-impl From<&Tracking> for PathBuf {
-	fn from(source: &Tracking) -> Self {
-		let mut root = PathBuf::from("/");
-
-		for t in source.0.iter() {
-			root.push(t.field.clone());
-		}
-
-		root
 	}
 }
 
@@ -191,6 +216,90 @@ impl TryFrom<&Value> for Order {
 	}
 }
 
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct Tracking(Vec<Track>);
+
+impl Tracking {
+	fn depth(&self) -> usize {
+		let vec = &self.0;
+		let index = vec.len().saturating_sub(1);
+
+		vec.get(index).map(|t| t.depth).unwrap_or(0)
+	}
+
+	fn track(&self, track: Track) -> Self {
+		let mut new = self.0.clone();
+		new.push(track);
+
+		Tracking(new)
+	}
+
+	fn ordered(self, order: Order) -> Self {
+		let mut ordered: Vec<Track> = vec![];
+		let length = self.0.len();
+
+		let mut paths = self.0.into_iter().peekable();
+		let mut orders = order.0.into_iter().rev().peekable();
+
+		let ordered = loop {
+			match (paths.peek(), orders.peek()) {
+				(None, _) => {
+					break ordered;
+				}
+				(Some(p), None) => {
+					ordered.push(p.clone());
+					paths.next();
+				}
+				(Some(p), Some(o)) => {
+					let same_field = o.field == p.field;
+					let same_depth = (length - o.depth) == p.depth;
+
+					let track = if same_field && same_depth {
+						let track = Track {
+							field: p.field.clone(),
+							depth: p.depth,
+							order: o.order,
+							kind: p.kind.clone(),
+						};
+
+						orders.next();
+
+						track
+					} else {
+						p.clone()
+					};
+
+					ordered.push(track);
+					paths.next();
+				}
+			};
+		};
+
+		Self(ordered)
+	}
+
+	fn kinded(mut self, kind: Kind) -> Tracking {
+		let len = self.0.len().saturating_sub(1);
+		if let Some(t) = self.0.get_mut(len) {
+			t.kind = Some(kind);
+		}
+
+		self
+	}
+}
+
+impl From<&Tracking> for PathBuf {
+	fn from(source: &Tracking) -> Self {
+		let mut root = PathBuf::from("/");
+
+		for t in source.0.iter() {
+			root.push(t.field.clone());
+		}
+
+		root
+	}
+}
+
 pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 	let mut objects: Vec<(Tracking, Value)> = vec![];
 	let mut walker: Vec<Box<dyn Iterator<Item = (Tracking, &Value)>>> =
@@ -206,13 +315,15 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 		};
 
 		if is_object(json) {
-			let path: PathBuf = (&tracking).into();
+			let order = Order::try_from(json)?;
+			let tracking = tracking.ordered(order);
+			let kind = Kind::try_from(json)?;
+			let tracked = tracking.kinded(kind);
+
+			let path: PathBuf = (&tracked).into();
 
 			if filter.pass(&path) {
-				let order = Order::try_from(json)?;
-				let tracking = tracking.ordered(order);
-
-				objects.push((tracking, json.to_owned()));
+				objects.push((tracked, json.to_owned()));
 			}
 		} else {
 			match json {
@@ -227,6 +338,7 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 								field: k.clone(),
 								depth: tracking.depth() + 1,
 								order: map.len(),
+								kind: None,
 							};
 
 							members.push((tracking.track(track), v))

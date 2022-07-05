@@ -50,9 +50,9 @@ fn render(contents: &str) -> Value {
 		r#"
 		local _ = import 'kct.libsonnet';
 		local sdk = _.sdk;
-        local obj() = {{
-			kind: "Deployment",
-			apiVersion: "apps/v1",
+        local obj(kind = 'Deployment') = {{
+			kind: kind,
+			apiVersion: 'apps/v1',
 		}};
 
 		{}
@@ -247,57 +247,110 @@ mod paths {
 	}
 
 	#[test]
+	fn orders_props_by_kind() {
+		let mut cases = vec![];
+
+		cases.push((
+			render(r#"{a: obj(), b: obj('Namespace'), c: obj('Pod'), d: obj('Job')}"#),
+			vec!["/b", "/c", "/a", "/d"],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['c'], {
+					a: obj('Deployment'),
+					b: obj('Pod'),
+					c: obj('Job'),
+                    d: obj('Namespace')
+				})"#,
+			),
+			vec!["/c", "/d", "/b", "/a"],
+		));
+
+		cases.push((
+			render(r#"{a: obj(), b: obj(), c: obj('Secret')}"#),
+			vec!["/c", "/a", "/b"],
+		));
+
+		cases.push((
+			render(r#"{a: obj(), b: obj('Unknown'), c: obj()}"#),
+			vec!["/a", "/c", "/b"],
+		));
+
+		cases.push((
+			render(
+				r#"{
+				x: {a: obj(), b: obj('Namespace')},
+				y: {a: obj('Secret'), b: obj('Job')},
+			}"#,
+			),
+			vec!["/x/b", "/x/a", "/y/a", "/y/b"],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['y'], {
+				x: obj('Unknown'),
+				y: {a: obj('Secret'), b: obj('Job')},
+				z: {a: obj(), b: obj('Namespace')},
+			})"#,
+			),
+			vec!["/y/a", "/y/b", "/x", "/z/b", "/z/a"],
+		));
+
+		cases.push((
+			render(
+				r#"sdk.inOrder(['d'], {
+				a: obj('Service'),
+				c: {b: obj('Pod'), c: obj('Deployment')},
+				b: obj('Job'),
+				d: obj()
+			})"#,
+			),
+			vec!["/d", "/a", "/b", "/c/b", "/c/c"],
+		));
+
+		for (json, order) in cases {
+			let found = find_from(&json);
+			assert_paths(found, order);
+		}
+	}
+
+	#[test]
 	fn allows_only_valid_and_clear_path_segments() {
 		let json = json!({ "01-obj": obj() });
 		let found = find_from(&json);
 		assert_paths(found, vec!["/01-obj"]);
 
-		let json = json!({ "/": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
+		let cases = vec![
+			json!({ "/": obj() }),
+			json!({ "a/b": obj() }),
+			json!({ ".": obj() }),
+			json!({ "..": obj() }),
+			json!({ "some%thing": obj() }),
+			json!({ "this.complicates.filtering": obj() }),
+			json!({ "-start-alphanumeric": obj() }),
+			json!({ "end-alphanumeric-": obj() }),
+		];
 
-		let json = json!({ "a/b": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({ ".": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({ "..": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({ "some%thing": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({ "this.complicates.filtering": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({ "-start-alphanumeric": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({ "end-alphanumeric-": obj() });
-		let found = find_from(&json);
-		assert_invalid(found);
+		for j in cases {
+			let found = find_from(&j);
+			assert_invalid(found)
+		}
 	}
 
 	#[test]
 	fn disallow_unclear_paths() {
-		let json = json!([obj(), obj()]);
-		let found = find_from(&json);
-		assert_invalid(found);
+		let cases = vec![
+			json!([obj(), obj()]),
+			json!({"a": obj(), "b": [obj(), obj()]}),
+			json!({"a": {"b": obj(), "c": [obj(), obj()]}}),
+		];
 
-		let json = json!({"a": obj(), "b": [obj(), obj()]});
-		let found = find_from(&json);
-		assert_invalid(found);
-
-		let json = json!({"a": {"b": obj(), "c": [obj(), obj()]}});
-		let found = find_from(&json);
-		assert_invalid(found);
+		for j in cases {
+			let found = find_from(&j);
+			assert_invalid(found)
+		}
 	}
 }
 
