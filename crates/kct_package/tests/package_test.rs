@@ -521,7 +521,7 @@ mod compile {
 				)],
 				vec![],
 			);
-			let _archive = subpackage(
+			subpackage(
 				&dir,
 				"sub",
 				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
@@ -550,7 +550,7 @@ mod compile {
 				)],
 				vec![],
 			);
-			let _archive = subpackage(
+			subpackage(
 				&dir,
 				"sub",
 				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').release")],

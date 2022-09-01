@@ -2,10 +2,9 @@ use jrsonnet_evaluator::error::Error as JrError;
 use jrsonnet_evaluator::ImportResolver;
 use jrsonnet_interner::IStr;
 use std::any::Any;
-use std::borrow::Borrow;
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 #[derive(Default)]
@@ -17,25 +16,27 @@ pub struct LibImportResolver {
 impl ImportResolver for LibImportResolver {
 	fn resolve_file(
 		&self,
-		from: &PathBuf,
-		path: &PathBuf,
-	) -> jrsonnet_evaluator::error::Result<Rc<PathBuf>> {
+		from: &Path,
+		path: &Path,
+	) -> jrsonnet_evaluator::error::Result<Rc<Path>> {
 		for library_path in self.library_paths.iter() {
 			let mut cloned = library_path.clone();
 			cloned.push(path);
+
 			if cloned.exists() {
-				return Ok(Rc::new(cloned));
+				return Ok(cloned.into());
 			}
 		}
 
-		Err(JrError::ImportFileNotFound(from.clone(), path.clone()).into())
+		Err(JrError::ImportFileNotFound(from.to_path_buf(), path.to_path_buf()).into())
 	}
 
-	fn load_file_contents(&self, id: &PathBuf) -> jrsonnet_evaluator::error::Result<IStr> {
-		let mut file = File::open(id).map_err(|_e| JrError::ResolvedFileNotFound(id.clone()))?;
+	fn load_file_contents(&self, id: &Path) -> jrsonnet_evaluator::error::Result<IStr> {
+		let mut file =
+			File::open(id).map_err(|_e| JrError::ResolvedFileNotFound(id.to_path_buf()))?;
 		let mut out = String::new();
 		file.read_to_string(&mut out)
-			.map_err(|_e| JrError::ImportBadFileUtf8(id.clone()))?;
+			.map_err(|_e| JrError::ImportBadFileUtf8(id.to_path_buf()))?;
 		Ok(out.into())
 	}
 	unsafe fn as_any(&self) -> &dyn Any {
@@ -48,30 +49,32 @@ pub struct RelativeImportResolver;
 impl ImportResolver for RelativeImportResolver {
 	fn resolve_file(
 		&self,
-		from: &PathBuf,
-		path: &PathBuf,
-	) -> jrsonnet_evaluator::error::Result<Rc<PathBuf>> {
-		let mut target = from.clone();
+		from: &Path,
+		path: &Path,
+	) -> jrsonnet_evaluator::error::Result<Rc<Path>> {
+		let mut target = from.to_path_buf();
 		target.push(path);
 
 		let resolved = if target.exists() {
-			Some(Rc::new(target))
+			Some(target.into())
 		} else {
 			from.parent()
 				.map(|p| p.join(path))
 				.and_then(|p| p.canonicalize().ok())
-				.map(Rc::new)
+				.map(|p| p.into())
 		};
 
-		resolved.ok_or_else(|| JrError::ImportFileNotFound(from.clone(), path.clone()).into())
+		resolved.ok_or_else(|| {
+			JrError::ImportFileNotFound(from.to_path_buf(), path.to_path_buf()).into()
+		})
 	}
 
-	fn load_file_contents(&self, path: &PathBuf) -> jrsonnet_evaluator::error::Result<IStr> {
+	fn load_file_contents(&self, path: &Path) -> jrsonnet_evaluator::error::Result<IStr> {
 		let mut file =
-			File::open(path).map_err(|_e| JrError::ResolvedFileNotFound(path.clone()))?;
+			File::open(path).map_err(|_e| JrError::ResolvedFileNotFound(path.to_path_buf()))?;
 		let mut out = String::new();
 		file.read_to_string(&mut out)
-			.map_err(|_e| JrError::ImportBadFileUtf8(path.clone()))?;
+			.map_err(|_e| JrError::ImportBadFileUtf8(path.to_path_buf()))?;
 		Ok(out.into())
 	}
 
@@ -96,33 +99,33 @@ impl AggregatedImportResolver {
 impl ImportResolver for AggregatedImportResolver {
 	fn resolve_file(
 		&self,
-		from: &PathBuf,
-		path: &PathBuf,
-	) -> jrsonnet_evaluator::error::Result<Rc<PathBuf>> {
+		from: &Path,
+		path: &Path,
+	) -> jrsonnet_evaluator::error::Result<Rc<Path>> {
 		for (i, resolver) in self.import_resolvers.iter().enumerate() {
 			let resolved = resolver.resolve_file(from, path);
 
 			if let Ok(ref path) = resolved {
 				let path = {
-					let base: &PathBuf = path.borrow();
-					let mut base = base.clone();
+					let base: PathBuf = path.to_path_buf();
+					let mut base = base;
 
 					base.push(format!("{}.resolver", i));
 
 					base
 				};
 
-				return Ok(Rc::new(path));
+				return Ok(path.into());
 			}
 		}
 
 		println!("Failed because every resolver failed");
 
-		Err(JrError::ImportFileNotFound(from.clone(), path.clone()).into())
+		Err(JrError::ImportFileNotFound(from.to_path_buf(), path.to_path_buf()).into())
 	}
 
-	fn load_file_contents(&self, id: &PathBuf) -> jrsonnet_evaluator::error::Result<IStr> {
-		let error = JrError::ResolvedFileNotFound(id.clone()).into();
+	fn load_file_contents(&self, id: &Path) -> jrsonnet_evaluator::error::Result<IStr> {
+		let error = JrError::ResolvedFileNotFound(id.to_path_buf()).into();
 
 		let is_from_resolver = id.extension().map_or(false, |ext| ext.eq("resolver"));
 		if !is_from_resolver {
@@ -136,7 +139,7 @@ impl ImportResolver for AggregatedImportResolver {
 			.and_then(|index| self.import_resolvers.get(index))
 			.ok_or(error)?;
 
-		resolver.load_file_contents(&id.parent().unwrap().to_path_buf())
+		resolver.load_file_contents(id.parent().unwrap())
 	}
 
 	unsafe fn as_any(&self) -> &dyn Any {

@@ -8,7 +8,7 @@ use std::{
 use thiserror::Error;
 use valico::json_schema::Scope;
 
-#[derive(Error, PartialEq, Debug)]
+#[derive(Error, PartialEq, Eq, Debug)]
 pub enum Error {
 	#[error("The rendered json is invalid")]
 	Invalid,

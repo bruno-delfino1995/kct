@@ -1,7 +1,12 @@
+pub use jrsonnet_gc::{Finalize, Gc, Trace};
+
 use crate::compiler::Runtime;
 
 use jrsonnet_evaluator::{
-	error::Error as JrError, error::LocError, native::NativeCallback, FuncVal, Val,
+	error::Error as JrError,
+	error::LocError,
+	native::{NativeCallback, NativeCallbackHandler},
+	FuncVal, Val,
 };
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;
@@ -10,12 +15,34 @@ use std::convert::From;
 use std::hash::Hash;
 use std::rc::Rc;
 
-type Handler = Box<dyn Fn(HashMap<String, Value>) -> Result<Value, String> + 'static>;
-
-#[derive(Clone)]
+#[derive(Clone, Trace, Finalize)]
 pub struct Function {
 	pub params: Vec<String>,
-	pub handler: Rc<Handler>,
+	pub handler: Gc<Box<dyn Callback>>,
+}
+
+pub trait Callback: Trace {
+	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
+}
+
+impl NativeCallbackHandler for Function {
+	fn call(
+		&self,
+		_from: Option<Rc<std::path::Path>>,
+		args: &[Val],
+	) -> jrsonnet_evaluator::error::Result<Val> {
+		let names = self.params.clone().into_iter();
+		let values = args.iter().map(|v| {
+			Value::try_from(v).expect("Extension functions should only receive valid JSON")
+		});
+
+		let params = names.zip(values).collect();
+
+		self.handler
+			.call(params)
+			.map(|v| Val::from(&v))
+			.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))
+	}
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -65,11 +92,8 @@ impl From<Output> for Val {
 		match original {
 			Plain { value, .. } => Val::from(&value),
 			Callback { name, function } => {
-				let name = name.as_str();
 				let params = function.params.clone();
-				let handler = function.handler.clone();
 
-				let params_names = function.params.clone();
 				let params_desc = {
 					let names: Vec<Param> =
 						params.into_iter().map(|n| Param(n.into(), None)).collect();
@@ -77,23 +101,10 @@ impl From<Output> for Val {
 					ParamsDesc(Rc::new(names))
 				};
 
-				let handler = move |_caller, params: &[Val]| -> Result<Val, LocError> {
-					let params_values = params.iter().map(|v| {
-						Value::try_from(v)
-							.expect("Extension functions should only receive valid JSON")
-					});
-					let params_names = params_names.clone().into_iter();
+				let callback = NativeCallback::new(params_desc, Box::new(function));
 
-					let params = params_names.zip(params_values).collect();
-
-					handler(params)
-						.map(|v| Val::from(&v))
-						.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))
-				};
-
-				let callback = NativeCallback::new(params_desc, handler);
-
-				let ext: Rc<FuncVal> = Rc::new(FuncVal::NativeExt(name.into(), Rc::new(callback)));
+				let name = name.as_str();
+				let ext: Gc<FuncVal> = Gc::new(FuncVal::NativeExt(name.into(), Gc::new(callback)));
 
 				Val::Func(ext)
 			}

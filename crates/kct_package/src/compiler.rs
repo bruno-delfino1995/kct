@@ -87,7 +87,7 @@ impl Compiler {
 		}
 
 		let parsed = state
-			.evaluate_file_raw(&self.workspace.entrypoint().to_path_buf())
+			.evaluate_file_raw(self.workspace.entrypoint())
 			.map_err(render_issue)?;
 
 		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();

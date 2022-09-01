@@ -1,18 +1,58 @@
 use crate::compiler::{
-	property::{Function, Name, Output, Property},
+	property::{Callback, Finalize, Function, Gc, Name, Output, Property, Trace},
 	Runtime,
 };
+
+use jrsonnet_gc::unsafe_empty_trace;
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::{collections::HashMap, fs};
 use tera::{Context, Tera};
 
 const TEMPLATES_FOLDER: &str = "files";
 
 pub struct File;
+
+struct Val(Value);
+
+impl Finalize for Val {}
+unsafe impl Trace for Val {
+	unsafe_empty_trace!();
+}
+
+#[derive(Trace, Finalize)]
+struct Handler {
+	root: PathBuf,
+	input: Gc<Val>,
+}
+
+impl Callback for Handler {
+	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String> {
+		let name = match params.get("name") {
+			None => return Err("name is required".into()),
+			Some(name) => name,
+		};
+
+		let file = match name {
+			Value::String(name) => name,
+			_ => return Err("name should be a string".into()),
+		};
+
+		let compiled = compile_template(&self.root, file, &self.input.0)?;
+
+		if compiled.is_empty() {
+			Err(format!("No template found for glob {}", file))
+		} else if compiled.len() == 1 {
+			Ok(Value::String(compiled.into_iter().next().unwrap()))
+		} else {
+			Ok(Value::Array(
+				compiled.into_iter().map(Value::String).collect(),
+			))
+		}
+	}
+}
 
 impl Property for File {
 	fn generate(&self, runtime: Runtime) -> Output {
@@ -29,37 +69,16 @@ impl Property for File {
 			.clone();
 
 		let params = vec![String::from("name")];
-		let handler = move |params: HashMap<String, Value>| -> Result<Value, String> {
-			let name = match params.get("name") {
-				None => return Err("name is required".into()),
-				Some(name) => name,
-			};
-
-			let file = match name {
-				Value::String(name) => name,
-				_ => return Err("name should be a string".into()),
-			};
-
-			let compiled = compile_template(&root, file, &input)?;
-
-			if compiled.is_empty() {
-				return Err(format!("No template found for glob {}", file));
-			} else if compiled.len() == 1 {
-				Ok(Value::String(compiled.into_iter().next().unwrap()))
-			} else {
-				Ok(Value::Array(
-					compiled.into_iter().map(Value::String).collect(),
-				))
-			}
+		let handler = Handler {
+			root,
+			input: Gc::new(Val(input)),
+		};
+		let function = Function {
+			params,
+			handler: Gc::new(Box::new(handler)),
 		};
 
 		let name = Name::File;
-		let handler = Box::new(handler);
-		let function = Function {
-			params,
-			handler: Rc::new(handler),
-		};
-
 		Output::Callback { name, function }
 	}
 }
