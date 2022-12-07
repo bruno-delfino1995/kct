@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - order objects at same depth according to their `kind`
+- add `set` to `compile` subcommand to help users change specific inputs
 
 ## [0.5.0] - 2022-07-01
 

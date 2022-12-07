@@ -28,7 +28,7 @@ impl Callback for Handler {
 			_ => return Err("name should be a string".into()),
 		};
 
-		let root = self.vendor.join(&package);
+		let root = self.vendor.join(package);
 		let package = Package::try_from(root.as_path()).map_err(|err| err.to_string())?;
 
 		let input: Option<Value> = params.get("input").cloned();

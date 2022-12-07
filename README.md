@@ -1,6 +1,6 @@
 # Kubernetes Configuration Tool
 
-![build](https://img.shields.io/github/workflow/status/kseat/kct/Code%20Quality)
+![build](https://img.shields.io/github/actions/workflow/status/bruno-delfino1995/kct/lints.yml?branch=main)
 ![license](https://img.shields.io/crates/l/kct)
 ![version](https://img.shields.io/crates/v/kct?label=version)
 

@@ -1,6 +1,6 @@
 use crate::error::Error as CError;
 use kct_helper::io;
-use kct_helper::json::merge;
+use kct_helper::json::{merge, set_in};
 use kct_kube::Filter;
 use kct_package::{Package, Release};
 use serde_json::{Map, Value};
@@ -17,6 +17,8 @@ pub struct Args {
 	package: PathBuf,
 	#[clap(help = "set input values for the package", long, short)]
 	input: Option<Vec<String>>,
+	#[clap(help = "set specific values for the package", long, short)]
+	set: Option<Vec<String>>,
 	#[clap(help = "directory to save compiled yamls", long, short)]
 	output: Option<PathBuf>,
 	#[clap(help = "scope your package within a release", long)]
@@ -28,14 +30,30 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
-	let inputs: Vec<Result<Value, String>> = args
-		.input
-		.unwrap_or_default()
-		.into_iter()
-		.map(PathBuf::from)
-		.map(|path| parse_input(&path))
-		.collect();
+	let inputs = {
+		let mut from_files: Vec<Result<Value, String>> = args
+			.input
+			.unwrap_or_default()
+			.into_iter()
+			.map(PathBuf::from)
+			.map(|path| parse_input(&path))
+			.collect();
+
+		let from_sets: Vec<Result<Value, String>> = args
+			.set
+			.unwrap_or_default()
+			.into_iter()
+			.map(|val| parse_set(&val))
+			.collect();
+
+		from_files.extend(from_sets);
+
+		from_files
+	};
+
 	let input = merge_inputs(&inputs).map_err(CError::InvalidInput)?;
+
+	println!("Input is: {:?}", &input);
 
 	let output = ensure_output_exists(&args.output)?;
 
@@ -85,6 +103,23 @@ fn parse_input(path: &Path) -> Result<Value, String> {
 		serde_json::from_str(&contents).map_err(|_err| format!("Unable to parse {}", file))?;
 
 	Ok(parsed)
+}
+
+fn parse_set(val: &str) -> Result<Value, String> {
+	let (name, value) = {
+		let parts = val.split('=').collect::<Vec<&str>>();
+
+		(parts[0], parts[1])
+	};
+
+	let mut result = Value::Null;
+	let path = name.split('.').collect::<Vec<&str>>();
+	let value = serde_json::from_str(value)
+		.map_err(|_err| format!("unable to parse value manually set for {}", name))?;
+
+	set_in(&mut result, &path, value);
+
+	Ok(result)
 }
 
 fn merge_inputs(inputs: &[Result<Value, String>]) -> Result<Option<Value>, String> {
