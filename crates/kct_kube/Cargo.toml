@@ -1,6 +1,6 @@
 [package]
 name = "kct_kube"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
 description = "K8s object finder"
 repository = "https://github.com/bruno-delfino1995/kct"
@@ -16,4 +16,4 @@ thiserror = "1.0"
 valico = "3.4.0"
 
 [dev-dependencies]
-kct_testing = { path = "../kct_testing", version = "^0.4.0"}
+kct_testing = { path = "../kct_testing", version = "^0.5.0"}

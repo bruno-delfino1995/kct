@@ -7,7 +7,7 @@ use clap::Parser;
 
 #[derive(Parser)]
 pub struct Args {
-	#[clap(help = "directory containing the KCP")]
+	#[arg(help = "directory containing the KCP")]
 	package: PathBuf,
 }
 

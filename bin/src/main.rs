@@ -2,32 +2,34 @@ mod compile;
 mod error;
 mod package;
 
-use clap::{AppSettings, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use std::fmt::Display;
 use std::process;
 
 #[derive(Parser)]
-#[clap(
+#[command(
 	version,
 	about = "K8s config without hideous templates or context babysitting",
 	name = "Kubernetes Configuration Tool"
 )]
-#[clap(global_setting(AppSettings::DisableHelpSubcommand))]
-#[clap(global_setting(AppSettings::ArgRequiredElseHelp))]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+#[command(
+	disable_help_subcommand = true,
+	help_expected = true,
+	arg_required_else_help = true
+)]
 pub struct Cli {
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	command: Command,
 }
 
 #[derive(Subcommand)]
 pub enum Command {
-	#[clap(
+	#[command(
 		name = "compile",
-		about = "Compiles the package into valid k8s objects"
+		about = "Compiles the package into valid K8S objects"
 	)]
 	Compile(compile::Args),
-	#[clap(name = "package", about = "Package a KCP into a KCP Archive")]
+	#[command(name = "package", about = "Packages the project for sharing")]
 	Package(package::Args),
 }
 

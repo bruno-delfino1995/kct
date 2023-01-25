@@ -13,19 +13,19 @@ use clap::Parser;
 
 #[derive(Parser)]
 pub struct Args {
-	#[clap(help = "directory with the KCP to compile")]
+	#[arg(help = "directory with the KCP to compile")]
 	package: PathBuf,
-	#[clap(help = "set input values for the package", long, short)]
+	#[arg(help = "set input values for the package", long, short)]
 	input: Option<Vec<String>>,
-	#[clap(help = "set specific values for the package", long, short)]
+	#[arg(help = "set specific values for the package", long, short)]
 	set: Option<Vec<String>>,
-	#[clap(help = "directory to save compiled yamls", long, short)]
+	#[arg(help = "directory to save compiled yamls", long, short)]
 	output: Option<PathBuf>,
-	#[clap(help = "scope your package within a release", long)]
+	#[arg(help = "scope your package within a release", long)]
 	release: Option<String>,
-	#[clap(help = "comma separated paths to compile", long)]
+	#[arg(help = "comma separated paths to compile", long)]
 	only: Option<String>,
-	#[clap(help = "comma separated paths to not compile", long)]
+	#[arg(help = "comma separated paths to not compile", long)]
 	except: Option<String>,
 }
 
