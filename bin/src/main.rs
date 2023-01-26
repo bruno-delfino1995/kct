@@ -29,8 +29,6 @@ pub enum Command {
 		about = "Compiles the package into valid K8S objects"
 	)]
 	Compile(compile::Args),
-	#[command(name = "package", about = "Packages the project for sharing")]
-	Package(package::Args),
 }
 
 fn main() {
@@ -38,7 +36,6 @@ fn main() {
 
 	let result = match cli.command {
 		Command::Compile(args) => compile::run(args),
-		Command::Package(args) => package::run(args),
 	};
 
 	let output = result.unwrap_or_else(exit);

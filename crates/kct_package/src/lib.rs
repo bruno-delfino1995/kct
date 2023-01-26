@@ -1,4 +1,3 @@
-mod archiver;
 mod compiler;
 mod error;
 mod functions;

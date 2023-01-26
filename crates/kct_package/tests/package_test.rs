@@ -70,38 +70,6 @@ mod try_from {
 	}
 }
 
-mod archive {
-	use super::*;
-
-	#[test]
-	fn creates_a_file_on_provided_dir() {
-		let cwd = testing::dir::tmp();
-		let (package, _dir) = package(vec![], vec![]);
-		let package = package.unwrap();
-
-		let compressed = package.archive(&PathBuf::from(cwd.path()));
-
-		assert!(compressed.is_ok());
-		assert!(compressed.unwrap().starts_with(cwd.path()));
-	}
-
-	#[test]
-	fn creates_archive_with_spec_info() {
-		let cwd = testing::dir::tmp();
-		let (package, _dir) = package(vec![], vec![]);
-		let package = package.unwrap();
-		let name = format!("{}_{}", package.spec.name, package.spec.version);
-
-		let compressed = package.archive(&PathBuf::from(cwd.path()));
-
-		assert!(compressed.is_ok());
-		assert_eq!(
-			name,
-			compressed.unwrap().file_stem().unwrap().to_str().unwrap()
-		);
-	}
-}
-
 mod compile {
 	use super::*;
 

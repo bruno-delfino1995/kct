@@ -4,7 +4,6 @@ mod spec;
 use self::schema::Schema;
 use self::spec::Spec;
 
-use crate::archiver;
 use crate::compiler::property::{Name, Output, Property};
 use crate::compiler::WorkspaceBuilder;
 use crate::compiler::{Compiler, Runtime};
@@ -110,11 +109,6 @@ impl TryFrom<&Path> for Package {
 
 /// Methods
 impl Package {
-	pub fn archive(self, dest: &Path) -> std::result::Result<PathBuf, String> {
-		let name = format!("{}_{}", self.spec.name, self.spec.version);
-		archiver::archive(&name, &self.root, dest)
-	}
-
 	pub fn validate_input(&self, input: &Option<Value>) -> Result<()> {
 		let (schema, input) = match (&self.schema, &input) {
 			(None, None) => return Ok(()),

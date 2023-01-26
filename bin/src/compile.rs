@@ -53,8 +53,6 @@ pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
 
 	let input = merge_inputs(&inputs).map_err(CError::InvalidInput)?;
 
-	println!("Input is: {:?}", &input);
-
 	let output = ensure_output_exists(&args.output)?;
 
 	let package = Package::try_from(args.package.as_path())?;

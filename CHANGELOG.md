@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - order objects at same depth according to their `kind`
 - add `set` to `compile` subcommand to help users change specific inputs
 
+### Removed
+
+- package command was removed because its original purpose is now achieved with jsonnet bundler
+
 ## [0.5.0] - 2022-07-01
 
 ### Added
