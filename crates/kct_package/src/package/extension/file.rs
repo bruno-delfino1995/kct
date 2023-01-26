@@ -1,13 +1,10 @@
-use crate::compiler::{
-	property::{Callback, Finalize, Function, Gc, Name, Output, Property, Trace},
-	Runtime,
-};
-
-use jrsonnet_gc::unsafe_empty_trace;
+use crate::compiler::extension::{Callback, Extension, Function, Name, Plugin};
+use crate::compiler::Runtime;
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::{collections::HashMap, fs};
 use tera::{Context, Tera};
 
@@ -15,17 +12,9 @@ const TEMPLATES_FOLDER: &str = "files";
 
 pub struct File;
 
-struct Val(Value);
-
-impl Finalize for Val {}
-unsafe impl Trace for Val {
-	unsafe_empty_trace!();
-}
-
-#[derive(Trace, Finalize)]
 struct Handler {
 	root: PathBuf,
-	input: Gc<Val>,
+	input: Value,
 }
 
 impl Callback for Handler {
@@ -40,10 +29,10 @@ impl Callback for Handler {
 			_ => return Err("name should be a string".into()),
 		};
 
-		let compiled = compile_template(&self.root, file, &self.input.0)?;
+		let compiled = compile_template(&self.root, file, &self.input)?;
 
 		if compiled.is_empty() {
-			Err(format!("No template found for glob {}", file))
+			Err(format!("No template found for glob {file}"))
 		} else if compiled.len() == 1 {
 			Ok(Value::String(compiled.into_iter().next().unwrap()))
 		} else {
@@ -54,32 +43,28 @@ impl Callback for Handler {
 	}
 }
 
-impl Property for File {
-	fn generate(&self, runtime: Runtime) -> Output {
+impl Extension for File {
+	fn plug(&self, runtime: Runtime) -> Plugin {
 		let root = runtime.workspace.dir().to_path_buf();
 
 		let input = runtime
-			.properties
-			.get(&Name::Input)
+			.plugins
+			.get(Name::Input)
 			.and_then(|v| match v.as_ref() {
-				Output::Plain { value, .. } => Some(value),
+				Plugin::Property { value, .. } => Some(value.clone()),
 				_ => None,
 			})
-			.unwrap_or(&Value::Null)
-			.clone();
+			.unwrap_or(Value::Null);
 
 		let params = vec![String::from("name")];
-		let handler = Handler {
-			root,
-			input: Gc::new(Val(input)),
-		};
+		let handler = Handler { root, input };
 		let function = Function {
 			params,
-			handler: Gc::new(Box::new(handler)),
+			handler: Rc::new(handler),
 		};
 
 		let name = Name::File;
-		Output::Callback { name, function }
+		Plugin::Callback { name, function }
 	}
 }
 
@@ -97,11 +82,11 @@ fn compile_template(
 
 	let globwalker = GlobWalkerBuilder::new(templates_dir, glob)
 		.build()
-		.map_err(|err| format!("Invalid glob provided ({}): {}", glob, err))?;
+		.map_err(|err| format!("Invalid glob provided ({glob}): {err}"))?;
 
 	let entries: Vec<DirEntry> = globwalker
 		.collect::<std::result::Result<_, _>>()
-		.map_err(|err| format!("Unable to resolve globs: {}", err))?;
+		.map_err(|err| format!("Unable to resolve globs: {err}"))?;
 
 	let mut paths: Vec<PathBuf> = entries.into_iter().map(DirEntry::into_path).collect();
 
@@ -111,7 +96,7 @@ fn compile_template(
 		.into_iter()
 		.map(fs::read_to_string)
 		.collect::<std::result::Result<_, _>>()
-		.map_err(|err| format!("Unable to read templates: {}", err))?;
+		.map_err(|err| format!("Unable to read templates: {err}"))?;
 
 	let context = match input {
 		Value::Null => Context::from_serialize(Value::Object(Map::new())).unwrap(),
@@ -122,7 +107,7 @@ fn compile_template(
 		.into_iter()
 		.map(|content| Tera::one_off(&content, &context, true))
 		.collect::<std::result::Result<_, _>>()
-		.map_err(|err| format!("Unable to compile templates: {}", err))?;
+		.map_err(|err| format!("Unable to compile templates: {err}"))?;
 
 	Ok(compiled)
 }

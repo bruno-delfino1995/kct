@@ -8,6 +8,7 @@ pub struct Workspace {
 	lib: PathBuf,
 }
 
+// TODO: Call this target -> It's the compilation target!
 impl Workspace {
 	fn default_lib(root: &Path) -> PathBuf {
 		let mut path = root.to_path_buf();

@@ -1,12 +1,14 @@
 pub mod context;
-pub mod property;
-mod resolvers;
+pub mod extension;
+pub mod prop;
+mod resolver;
 pub mod runtime;
 pub mod workspace;
 
 pub use self::context::Context;
-use self::property::{Name, Output, Property};
-use self::resolvers::*;
+use self::extension::include::Include;
+use self::extension::{Extension, Name, Plugins};
+use self::resolver::*;
 pub use self::runtime::Runtime;
 pub use self::workspace::{Workspace, WorkspaceBuilder};
 
@@ -29,11 +31,17 @@ pub const VARS_PREFIX: &str = "kct.io";
 pub trait Validator: Fn(&Compiler) -> bool {}
 impl<T: Fn(&Compiler) -> bool> Validator for T {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+pub struct Release {
+	pub name: String,
+}
+
+pub struct Input(pub Value);
+
 pub struct Compiler {
 	context: Context,
 	workspace: Workspace,
-	properties: HashMap<Name, Rc<Output>>,
+	plugins: Plugins,
 	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
@@ -42,25 +50,24 @@ impl Compiler {
 		let mut res = Self {
 			context: ctx.clone(),
 			workspace: wk,
-			properties: HashMap::new(),
+			plugins: Plugins::new(),
 			validators: vec![],
 		};
 
 		res = match ctx.release() {
-			Some(release) => res.prop(Box::new(release.clone())),
+			Some(release) => res.extend(Box::new(release.clone())),
 			None => res,
 		};
+
+		res = res.extend(Box::new(Include));
 
 		res
 	}
 
-	pub fn prop(mut self, prop: Box<dyn Property>) -> Self {
+	pub fn extend(mut self, ext: Box<dyn Extension>) -> Self {
 		let runtime: Runtime = (&self).into();
 
-		let output = prop.generate(runtime);
-		let name = output.name().clone();
-
-		self.properties.insert(name, Rc::new(output));
+		self.plugins.put(ext.plug(runtime));
 
 		self
 	}
@@ -93,7 +100,7 @@ impl Compiler {
 
 		let variables = self.create_ext_vars();
 		for (name, value) in variables {
-			let name = format!("{}/{}", VARS_PREFIX, name);
+			let name = format!("{VARS_PREFIX}/{name}");
 			state.add_ext_var(name.into(), value);
 		}
 
@@ -109,14 +116,14 @@ impl Compiler {
 	}
 
 	fn create_ext_vars(&self) -> HashMap<String, Val> {
-		let from_prop = |p: property::Name| -> (String, Val) {
+		let from_plugin = |p: Name| -> (String, Val) {
 			let default = Val::Null;
 			let name = p.as_str();
-			let property = self.properties.get(&p);
+			let property = self.plugins.get(p);
 
 			let val = property
 				.map(|value| {
-					let copy = (**value).clone();
+					let copy = (*value).clone();
 
 					copy.into()
 				})
@@ -126,11 +133,11 @@ impl Compiler {
 		};
 
 		vec![
-			from_prop(Name::Package),
-			from_prop(Name::Release),
-			from_prop(Name::Input),
-			from_prop(Name::Include),
-			from_prop(Name::File),
+			from_plugin(Name::Package),
+			from_plugin(Name::Release),
+			from_plugin(Name::Input),
+			from_plugin(Name::Include),
+			from_plugin(Name::File),
 		]
 		.into_iter()
 		.collect()

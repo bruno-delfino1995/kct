@@ -39,10 +39,10 @@ fn main() {
 
 	let output = result.unwrap_or_else(exit);
 
-	println!("{}", output)
+	println!("{output}")
 }
 
 fn exit<T: Display, R>(err: T) -> R {
-	eprintln!("{}", err);
+	eprintln!("{err}");
 	process::exit(1)
 }

@@ -98,7 +98,7 @@ fn parse_input(path: &Path) -> Result<Value, String> {
 
 	let file = path.to_str().unwrap();
 	let parsed: Value =
-		serde_json::from_str(&contents).map_err(|_err| format!("Unable to parse {}", file))?;
+		serde_json::from_str(&contents).map_err(|_err| format!("Unable to parse {file}"))?;
 
 	Ok(parsed)
 }
@@ -113,7 +113,7 @@ fn parse_set(val: &str) -> Result<Value, String> {
 	let mut result = Value::Null;
 	let path = name.split('.').collect::<Vec<&str>>();
 	let value = serde_json::from_str(value)
-		.map_err(|_err| format!("unable to parse value manually set for {}", name))?;
+		.map_err(|_err| format!("unable to parse value manually set for {name}"))?;
 
 	set_in(&mut result, &path, value);
 

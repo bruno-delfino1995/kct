@@ -1,15 +1,11 @@
-use crate::compiler::{
-	property::{Name, Output, Property},
-	Runtime,
+use crate::{
+	compiler::extension::{Extension, Name, Plugin},
+	compiler::Runtime,
+	Release,
 };
 
 use serde_json::{Map, Value};
 use std::convert::From;
-
-#[derive(Clone, Debug)]
-pub struct Release {
-	pub name: String,
-}
 
 impl From<&Release> for Value {
 	fn from(release: &Release) -> Self {
@@ -20,9 +16,9 @@ impl From<&Release> for Value {
 	}
 }
 
-impl Property for Release {
-	fn generate(&self, _: Runtime) -> Output {
-		Output::Plain {
+impl Extension for Release {
+	fn plug(&self, _: Runtime) -> Plugin {
+		Plugin::Property {
 			name: Name::Release,
 			value: self.into(),
 		}

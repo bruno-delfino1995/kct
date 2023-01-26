@@ -55,9 +55,8 @@ fn render(contents: &str) -> Value {
 			apiVersion: 'apps/v1',
 		}};
 
-		{}
-	"#,
-		contents
+		{contents}
+	"#
 	);
 
 	compile(main.as_str())

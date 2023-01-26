@@ -1,20 +1,19 @@
+mod extension;
 mod schema;
 mod spec;
 
+use self::extension::File;
 use self::schema::Schema;
 use self::spec::Spec;
 
 use crate::compiler::context::ContextBuilder;
-use crate::compiler::property::{Name, Output, Property};
-use crate::compiler::{Compiler, Runtime};
-use crate::compiler::{Workspace, WorkspaceBuilder};
+use crate::compiler::extension::{Name, Plugin};
+use crate::compiler::Workspace;
+use crate::compiler::{Compiler, Input, Release, Runtime, WorkspaceBuilder};
 use crate::error::{Error, Result};
-use crate::functions::{File, Include};
-use crate::input::Input;
-use crate::release::Release;
 
 use kct_helper::io;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -145,7 +144,7 @@ impl Package {
 
 		compiler = match input {
 			None => compiler,
-			Some(input) => compiler.prop(Box::new(Input(input))),
+			Some(input) => compiler.extend(Box::new(Input(input))),
 		};
 
 		self.compile_with(compiler)
@@ -157,10 +156,10 @@ impl Package {
 			let runtime: Runtime = c.into();
 
 			let input = runtime
-				.properties
-				.get(&Name::Input)
+				.plugins
+				.get(Name::Input)
 				.and_then(|v| match v.as_ref() {
-					Output::Plain { value, .. } => Some(value.clone()),
+					Plugin::Property { value, .. } => Some(value.clone()),
 					_ => None,
 				});
 
@@ -168,27 +167,10 @@ impl Package {
 		};
 
 		compiler
-			.prop(Box::new(self))
-			.prop(Box::new(File))
-			.prop(Box::new(Include))
+			.extend(Box::new(self))
+			.extend(Box::new(File))
 			.validator(validator)
 			.compile()
-	}
-}
-
-impl From<&Package> for Value {
-	fn from(package: &Package) -> Self {
-		let mut map = Map::<String, Value>::new();
-		map.insert(
-			String::from("name"),
-			Value::String(package.spec.name.clone()),
-		);
-		map.insert(
-			String::from("version"),
-			Value::String(package.spec.version.to_string()),
-		);
-
-		Value::Object(map)
 	}
 }
 
@@ -202,14 +184,5 @@ impl From<&Package> for Workspace {
 			.main(main)
 			.build()
 			.unwrap()
-	}
-}
-
-impl Property for Package {
-	fn generate(&self, _: Runtime) -> Output {
-		Output::Plain {
-			name: Name::Package,
-			value: self.into(),
-		}
 	}
 }

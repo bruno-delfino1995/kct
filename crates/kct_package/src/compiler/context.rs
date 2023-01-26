@@ -2,9 +2,7 @@ use std::convert::From;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use jrsonnet_gc::{unsafe_empty_trace, Finalize, Trace};
-
-use crate::Release;
+use crate::compiler::Release;
 
 struct Internal {
 	root: PathBuf,
@@ -36,11 +34,6 @@ impl Context {
 	pub fn vendor(&self) -> &Path {
 		&self.0.vendor
 	}
-}
-
-impl Finalize for Context {}
-unsafe impl Trace for Context {
-	unsafe_empty_trace!();
 }
 
 #[derive(Default)]

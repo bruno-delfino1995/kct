@@ -2,7 +2,7 @@ use serde_json::{json, Map, Value};
 
 pub fn merge(left: &mut Value, right: &Value) {
 	match (left, right) {
-		(&mut Value::Object(ref mut left), &Value::Object(ref right)) => {
+		(&mut Value::Object(ref mut left), Value::Object(right)) => {
 			for (key, value) in right {
 				merge(left.entry(key.clone()).or_insert(Value::Null), value);
 			}

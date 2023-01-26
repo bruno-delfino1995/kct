@@ -1,16 +1,15 @@
-use crate::compiler::property::{Callback, Finalize, Function, Gc, Name, Output, Property, Trace};
+use crate::compiler::extension::{Callback, Extension, Function, Name, Plugin};
 
-use crate::compiler::{Compiler, Context, Runtime, Workspace};
-use crate::input::Input;
+use crate::compiler::{Compiler, Context, Input, Runtime, Workspace};
 use crate::Package;
 
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::rc::Rc;
 
 pub struct Include;
 
-#[derive(Trace, Finalize)]
 struct Handler {
 	context: Context,
 }
@@ -39,7 +38,7 @@ impl Callback for Handler {
 		let compiler = {
 			match input {
 				None => compiler,
-				Some(input) => compiler.prop(Box::new(Input(input))),
+				Some(input) => compiler.extend(Box::new(Input(input))),
 			}
 		};
 
@@ -51,17 +50,17 @@ impl Callback for Handler {
 	}
 }
 
-impl Property for Include {
-	fn generate(&self, runtime: Runtime) -> Output {
+impl Extension for Include {
+	fn plug(&self, runtime: Runtime) -> Plugin {
 		let context = runtime.context;
 		let params = vec![String::from("name"), String::from("input")];
 		let handler = Handler { context };
 		let function = Function {
 			params,
-			handler: Gc::new(Box::new(handler)),
+			handler: Rc::new(handler),
 		};
 
 		let name = Name::Include;
-		Output::Callback { name, function }
+		Plugin::Callback { name, function }
 	}
 }

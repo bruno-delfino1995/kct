@@ -1,6 +1,6 @@
-pub use jrsonnet_gc::{Finalize, Gc, Trace};
+pub use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
 
-use crate::compiler::Runtime;
+use crate::compiler::extension::{Function, Plugin};
 
 use jrsonnet_evaluator::{
 	error::Error as JrError,
@@ -10,19 +10,12 @@ use jrsonnet_evaluator::{
 };
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::convert::From;
-use std::hash::Hash;
 use std::rc::Rc;
 
-#[derive(Clone, Trace, Finalize)]
-pub struct Function {
-	pub params: Vec<String>,
-	pub handler: Gc<Box<dyn Callback>>,
-}
-
-pub trait Callback: Trace {
-	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
+impl Finalize for Function {}
+unsafe impl Trace for Function {
+	unsafe_empty_trace!();
 }
 
 impl NativeCallbackHandler for Function {
@@ -45,52 +38,12 @@ impl NativeCallbackHandler for Function {
 	}
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub enum Name {
-	File,
-	Include,
-	Input,
-	Package,
-	Release,
-}
-
-impl Name {
-	pub fn as_str(&self) -> &str {
-		use Name::*;
-
-		match self {
-			File => "files",
-			Include => "include",
-			Package => "package",
-			Release => "release",
-			Input => "input",
-		}
-	}
-}
-
-#[derive(Clone)]
-pub enum Output {
-	Plain { name: Name, value: Value },
-	Callback { name: Name, function: Function },
-}
-
-impl Output {
-	pub fn name(&self) -> &Name {
-		use Output::*;
-
-		match self {
-			Plain { name, .. } => name,
-			Callback { name, .. } => name,
-		}
-	}
-}
-
-impl From<Output> for Val {
-	fn from(original: Output) -> Self {
-		use Output::*;
+impl From<Plugin> for Val {
+	fn from(original: Plugin) -> Self {
+		use Plugin::*;
 
 		match original {
-			Plain { value, .. } => Val::from(&value),
+			Property { value, .. } => Val::from(&value),
 			Callback { name, function } => {
 				let params = function.params.clone();
 
@@ -110,8 +63,4 @@ impl From<Output> for Val {
 			}
 		}
 	}
-}
-
-pub trait Property {
-	fn generate(&self, runtime: Runtime) -> Output;
 }

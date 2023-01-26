@@ -110,7 +110,7 @@ impl ImportResolver for AggregatedImportResolver {
 					let base: PathBuf = path.to_path_buf();
 					let mut base = base;
 
-					base.push(format!("{}.resolver", i));
+					base.push(format!("{i}.resolver"));
 
 					base
 				};
