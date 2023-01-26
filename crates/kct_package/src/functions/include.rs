@@ -1,19 +1,18 @@
 use crate::compiler::property::{Callback, Finalize, Function, Gc, Name, Output, Property, Trace};
-use crate::compiler::workspace::WorkspaceBuilder;
-use crate::compiler::{Compiler, Runtime};
+
+use crate::compiler::{Compiler, Context, Runtime, Workspace};
 use crate::input::Input;
 use crate::Package;
 
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::path::PathBuf;
 
 pub struct Include;
 
 #[derive(Trace, Finalize)]
 struct Handler {
-	vendor: PathBuf,
+	context: Context,
 }
 
 impl Callback for Handler {
@@ -28,17 +27,14 @@ impl Callback for Handler {
 			_ => return Err("name should be a string".into()),
 		};
 
-		let root = self.vendor.join(package);
+		let root = self.context.vendor().join(package);
 		let package = Package::try_from(root.as_path()).map_err(|err| err.to_string())?;
 
 		let input: Option<Value> = params.get("input").cloned();
 
-		let workspace_builder: WorkspaceBuilder = (&package).into();
+		let workspace: Workspace = (&package).into();
 
-		let compiler: Compiler = workspace_builder
-			.vendor(self.vendor.clone())
-			.build()?
-			.into();
+		let compiler = Compiler::new(&self.context, workspace);
 
 		let compiler = {
 			match input {
@@ -57,10 +53,9 @@ impl Callback for Handler {
 
 impl Property for Include {
 	fn generate(&self, runtime: Runtime) -> Output {
-		let vendor = runtime.workspace.vendor().to_path_buf();
-
+		let context = runtime.context;
 		let params = vec![String::from("name"), String::from("input")];
-		let handler = Handler { vendor };
+		let handler = Handler { context };
 		let function = Function {
 			params,
 			handler: Gc::new(Box::new(handler)),

@@ -56,7 +56,7 @@ impl Callback for Handler {
 
 impl Property for File {
 	fn generate(&self, runtime: Runtime) -> Output {
-		let root = runtime.workspace.root().to_path_buf();
+		let root = runtime.workspace.dir().to_path_buf();
 
 		let input = runtime
 			.properties

@@ -3,20 +3,12 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default)]
 pub struct Workspace {
-	root: PathBuf,
-	entrypoint: PathBuf,
+	dir: PathBuf,
+	main: PathBuf,
 	lib: PathBuf,
-	vendor: PathBuf,
 }
 
 impl Workspace {
-	fn default_vendor(root: &Path) -> PathBuf {
-		let mut path = root.to_path_buf();
-		path.push("vendor");
-
-		path
-	}
-
 	fn default_lib(root: &Path) -> PathBuf {
 		let mut path = root.to_path_buf();
 		path.push("lib");
@@ -26,71 +18,43 @@ impl Workspace {
 }
 
 impl Workspace {
-	pub fn root(&self) -> &Path {
-		&self.root
+	pub fn dir(&self) -> &Path {
+		&self.dir
 	}
 
-	pub fn entrypoint(&self) -> &Path {
-		&self.entrypoint
+	pub fn main(&self) -> &Path {
+		&self.main
 	}
 
 	pub fn lib(&self) -> &Path {
 		&self.lib
 	}
-
-	pub fn vendor(&self) -> &Path {
-		&self.vendor
-	}
 }
 
 #[derive(Default)]
 pub struct WorkspaceBuilder {
-	root: Option<PathBuf>,
-	entrypoint: Option<PathBuf>,
+	dir: Option<PathBuf>,
+	main: Option<PathBuf>,
 	lib: Option<PathBuf>,
-	vendor: Option<PathBuf>,
 }
 
 impl WorkspaceBuilder {
-	pub fn root(mut self, root: PathBuf) -> WorkspaceBuilder {
-		match self.root {
+	pub fn dir(mut self, root: PathBuf) -> WorkspaceBuilder {
+		match self.dir {
 			Some(_) => self,
 			None => {
-				self.root = Some(root);
+				self.dir = Some(root);
 
 				self
 			}
 		}
 	}
 
-	pub fn entrypoint(mut self, entrypoint: PathBuf) -> WorkspaceBuilder {
-		match self.entrypoint {
+	pub fn main(mut self, main: PathBuf) -> WorkspaceBuilder {
+		match self.main {
 			Some(_) => self,
 			None => {
-				self.entrypoint = Some(entrypoint);
-
-				self
-			}
-		}
-	}
-
-	#[allow(dead_code)]
-	pub fn lib(mut self, lib: PathBuf) -> WorkspaceBuilder {
-		match self.lib {
-			Some(_) => self,
-			None => {
-				self.lib = Some(lib);
-
-				self
-			}
-		}
-	}
-
-	pub fn vendor(mut self, vendor: PathBuf) -> WorkspaceBuilder {
-		match self.vendor {
-			Some(_) => self,
-			None => {
-				self.vendor = Some(vendor);
+				self.main = Some(main);
 
 				self
 			}
@@ -98,20 +62,10 @@ impl WorkspaceBuilder {
 	}
 
 	pub fn build(self) -> Result<Workspace, String> {
-		let root = self.root.ok_or_else(|| String::from("root is required"))?;
-		let entrypoint = self
-			.entrypoint
-			.ok_or_else(|| String::from("entrypoint is required"))?;
-		let lib = self.lib.unwrap_or_else(|| Workspace::default_lib(&root));
-		let vendor = self
-			.vendor
-			.unwrap_or_else(|| Workspace::default_vendor(&root));
+		let dir = self.dir.ok_or_else(|| String::from("dir is required"))?;
+		let main = self.main.ok_or_else(|| String::from("main is required"))?;
+		let lib = self.lib.unwrap_or_else(|| Workspace::default_lib(&dir));
 
-		Ok(Workspace {
-			root,
-			entrypoint,
-			lib,
-			vendor,
-		})
+		Ok(Workspace { dir, main, lib })
 	}
 }

@@ -4,9 +4,10 @@ mod spec;
 use self::schema::Schema;
 use self::spec::Spec;
 
+use crate::compiler::context::ContextBuilder;
 use crate::compiler::property::{Name, Output, Property};
-use crate::compiler::WorkspaceBuilder;
 use crate::compiler::{Compiler, Runtime};
+use crate::compiler::{Workspace, WorkspaceBuilder};
 use crate::error::{Error, Result};
 use crate::functions::{File, Include};
 use crate::input::Input;
@@ -16,6 +17,7 @@ use kct_helper::io;
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 const SCHEMA_FILE: &str = "schema.json";
 const SPEC_FILE: &str = "kcp.json";
@@ -125,20 +127,25 @@ impl Package {
 	}
 
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value> {
-		let workspace_builder: WorkspaceBuilder = (&self).into();
-		let mut compiler: Compiler = workspace_builder
-			.build()
-			.map_err(|_| Error::InvalidInput)?
-			.into();
+		let workspace = (&self).into();
+
+		let context = {
+			let root = self.root.clone();
+
+			let ctx = ContextBuilder::default()
+				.release(release)
+				.root(root)
+				.build()
+				.unwrap();
+
+			Rc::new(ctx)
+		};
+
+		let mut compiler = Compiler::new(&context, workspace);
 
 		compiler = match input {
 			None => compiler,
 			Some(input) => compiler.prop(Box::new(Input(input))),
-		};
-
-		compiler = match release {
-			None => compiler,
-			Some(release) => compiler.prop(Box::new(release)),
 		};
 
 		self.compile_with(compiler)
@@ -185,14 +192,16 @@ impl From<&Package> for Value {
 	}
 }
 
-impl From<&Package> for WorkspaceBuilder {
+impl From<&Package> for Workspace {
 	fn from(package: &Package) -> Self {
-		let root = package.root.clone();
-		let entrypoint = package.main.clone();
+		let dir = package.root.clone();
+		let main = package.main.clone();
 
 		WorkspaceBuilder::default()
-			.root(root)
-			.entrypoint(entrypoint)
+			.dir(dir)
+			.main(main)
+			.build()
+			.unwrap()
 	}
 }
 

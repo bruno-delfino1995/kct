@@ -4,7 +4,6 @@ use kct_package::{Error, Package, Release};
 use serde_json::{json, Map, Value};
 use std::convert::TryFrom;
 use std::panic::panic_any;
-use std::path::PathBuf;
 
 fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Error>, TempDir) {
 	let dir = Fixture::custom(with, without);

@@ -1,6 +1,5 @@
 mod compile;
 mod error;
-mod package;
 
 use clap::{Parser, Subcommand};
 use std::fmt::Display;

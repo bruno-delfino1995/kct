@@ -1,8 +1,10 @@
+pub mod context;
 pub mod property;
 mod resolvers;
 pub mod runtime;
 pub mod workspace;
 
+pub use self::context::Context;
 use self::property::{Name, Output, Property};
 use self::resolvers::*;
 pub use self::runtime::Runtime;
@@ -19,6 +21,7 @@ use jrsonnet_evaluator::{
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::From;
+
 use std::rc::Rc;
 
 pub const VARS_PREFIX: &str = "kct.io";
@@ -26,23 +29,31 @@ pub const VARS_PREFIX: &str = "kct.io";
 pub trait Validator: Fn(&Compiler) -> bool {}
 impl<T: Fn(&Compiler) -> bool> Validator for T {}
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Compiler {
+	context: Context,
 	workspace: Workspace,
 	properties: HashMap<Name, Rc<Output>>,
 	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
-impl From<Workspace> for Compiler {
-	fn from(workspace: Workspace) -> Self {
-		Compiler {
-			workspace,
-			..Default::default()
-		}
-	}
-}
-
 impl Compiler {
+	pub fn new(ctx: &Context, wk: Workspace) -> Self {
+		let mut res = Self {
+			context: ctx.clone(),
+			workspace: wk,
+			properties: HashMap::new(),
+			validators: vec![],
+		};
+
+		res = match ctx.release() {
+			Some(release) => res.prop(Box::new(release.clone())),
+			None => res,
+		};
+
+		res
+	}
+
 	pub fn prop(mut self, prop: Box<dyn Property>) -> Self {
 		let runtime: Runtime = (&self).into();
 
@@ -87,7 +98,7 @@ impl Compiler {
 		}
 
 		let parsed = state
-			.evaluate_file_raw(self.workspace.entrypoint())
+			.evaluate_file_raw(self.workspace.main())
 			.map_err(render_issue)?;
 
 		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
@@ -132,7 +143,7 @@ impl Compiler {
 
 		state.with_stdlib();
 
-		let vendor = self.workspace.vendor().to_path_buf();
+		let vendor = self.context.vendor().to_path_buf();
 		let lib = self.workspace.lib().to_path_buf();
 
 		let relative_resolver = Box::new(RelativeImportResolver);
