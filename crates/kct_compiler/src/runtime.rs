@@ -1,13 +1,12 @@
-use super::workspace::Workspace;
-use super::{Compiler, Context};
 use crate::extension::Plugins;
+use crate::{Compiler, Context, Target};
 
 use std::convert::From;
 
 #[derive(Clone)]
 pub struct Runtime {
 	pub context: Context,
-	pub workspace: Workspace,
+	pub workspace: Target,
 	pub plugins: Plugins,
 }
 

@@ -1,7 +1,5 @@
-use crate::{
-	extension::{Extension, Name, Plugin},
-	{Input, Runtime},
-};
+use crate::extension::{Extension, Name, Plugin};
+use crate::{Input, Runtime};
 
 impl Extension for Input {
 	fn plug(&self, _: Runtime) -> Plugin {

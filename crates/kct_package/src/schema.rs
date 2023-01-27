@@ -1,10 +1,11 @@
 use crate::error::{Error, Result};
 
-use kct_helper::io;
-use serde_json::Value;
 use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
+
+use kct_helper::io;
+use serde_json::Value;
 use url::Url;
 use valico::json_schema::Scope;
 

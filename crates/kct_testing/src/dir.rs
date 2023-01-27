@@ -1,6 +1,8 @@
-use fs_extra::dir::{self as fsdir, CopyOptions};
 use std::env;
 use std::path::{Path, PathBuf};
+
+use fs_extra::dir::{self as fsdir, CopyOptions};
+
 pub use tempfile::TempDir;
 
 pub fn tmp() -> TempDir {

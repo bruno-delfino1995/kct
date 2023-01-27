@@ -1,10 +1,11 @@
 use crate::error::{Error, Result};
 
+use std::convert::TryFrom;
+use std::path::PathBuf;
+
 use kct_helper::io;
 use semver::Version;
 use serde_json::Value;
-use std::convert::TryFrom;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct Spec {

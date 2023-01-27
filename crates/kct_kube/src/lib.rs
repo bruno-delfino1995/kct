@@ -1,10 +1,9 @@
+use std::cmp::Ordering;
+use std::path::{Path, PathBuf};
+
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_json::Value;
-use std::{
-	cmp::Ordering,
-	path::{Path, PathBuf},
-};
 use thiserror::Error;
 use valico::json_schema::Scope;
 

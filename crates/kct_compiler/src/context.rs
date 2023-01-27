@@ -1,8 +1,8 @@
+use crate::Release;
+
 use std::convert::From;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-
-use crate::Release;
 
 struct Internal {
 	root: PathBuf,

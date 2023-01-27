@@ -1,17 +1,15 @@
-pub use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
-
 use crate::extension::{Function, Plugin};
 
-use jrsonnet_evaluator::{
-	error::Error as JrError,
-	error::LocError,
-	native::{NativeCallback, NativeCallbackHandler},
-	FuncVal, Val,
-};
-use jrsonnet_parser::{Param, ParamsDesc};
-use serde_json::Value;
 use std::convert::From;
 use std::rc::Rc;
+
+use jrsonnet_evaluator::error::{Error as JrError, LocError};
+use jrsonnet_evaluator::native::{NativeCallback, NativeCallbackHandler};
+use jrsonnet_evaluator::{FuncVal, Val};
+use jrsonnet_parser::{Param, ParamsDesc};
+use serde_json::Value;
+
+pub use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
 
 impl Finalize for Function {}
 unsafe impl Trace for Function {

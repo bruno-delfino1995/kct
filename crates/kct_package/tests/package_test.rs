@@ -1,10 +1,11 @@
-use kct_testing::{self as testing, dir::TempDir, Fixture};
+use std::convert::TryFrom;
+use std::panic::panic_any;
 
 use kct_compiler::{Error as CError, Release};
 use kct_package::{Error, Package};
+use kct_testing::dir::TempDir;
+use kct_testing::{self as testing, Fixture};
 use serde_json::{json, Map, Value};
-use std::convert::TryFrom;
-use std::panic::panic_any;
 
 fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Error>, TempDir) {
 	let dir = Fixture::custom(with, without);

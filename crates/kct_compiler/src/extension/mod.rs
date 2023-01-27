@@ -3,10 +3,11 @@ pub mod release;
 
 use crate::Runtime;
 
-use serde_json::Value;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
+
+use serde_json::Value;
 
 pub trait Extension {
 	fn plug(&self, runtime: Runtime) -> Plugin;

@@ -1,11 +1,12 @@
-use jrsonnet_evaluator::error::Error as JrError;
-use jrsonnet_evaluator::ImportResolver;
-use jrsonnet_interner::IStr;
 use std::any::Any;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+use jrsonnet_evaluator::error::Error as JrError;
+use jrsonnet_evaluator::ImportResolver;
+use jrsonnet_interner::IStr;
 
 #[derive(Default)]
 pub struct LibImportResolver {

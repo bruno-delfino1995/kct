@@ -1,5 +1,6 @@
-pub mod dir;
 mod fixture;
+
+pub mod dir;
 pub mod io;
 
 pub use self::fixture::Fixture;

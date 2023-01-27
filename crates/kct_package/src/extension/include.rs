@@ -1,12 +1,12 @@
-use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin};
-use kct_compiler::{Compiler, Context, Input, Runtime, Workspace};
-
 use crate::Package;
 
-use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::rc::Rc;
+
+use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin};
+use kct_compiler::{Compiler, Context, Input, Runtime, Target};
+use serde_json::Value;
 
 pub struct Include;
 
@@ -31,7 +31,7 @@ impl Callback for Handler {
 
 		let input: Option<Value> = params.get("input").cloned();
 
-		let workspace: Workspace = (&package).into();
+		let workspace: Target = (&package).into();
 
 		let compiler = Compiler::new(&self.context, workspace);
 

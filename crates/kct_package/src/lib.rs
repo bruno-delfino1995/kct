@@ -10,15 +10,16 @@ use crate::extension::{File, Include};
 use crate::schema::Schema;
 use crate::spec::Spec;
 
-use kct_compiler::context::ContextBuilder;
-use kct_compiler::error::Error as CError;
-use kct_compiler::extension::{Extension, Name, Plugin};
-use kct_compiler::{Compiler, Input, Release, Runtime, Workspace, WorkspaceBuilder};
-use kct_helper::io;
-use serde_json::{Map, Value};
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+use kct_compiler::extension::{Extension, Name, Plugin};
+use kct_compiler::ContextBuilder;
+use kct_compiler::Error as CError;
+use kct_compiler::{Compiler, Input, Release, Runtime, Target, TargetBuilder};
+use kct_helper::io;
+use serde_json::{Map, Value};
 
 const SCHEMA_FILE: &str = "schema.json";
 const SPEC_FILE: &str = "kcp.json";
@@ -181,12 +182,12 @@ impl Package {
 	}
 }
 
-impl From<&Package> for Workspace {
+impl From<&Package> for Target {
 	fn from(package: &Package) -> Self {
 		let dir = package.root.clone();
 		let main = package.main.clone();
 
-		WorkspaceBuilder::default()
+		TargetBuilder::default()
 			.dir(dir)
 			.main(main)
 			.build()

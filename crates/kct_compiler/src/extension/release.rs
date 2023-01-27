@@ -1,10 +1,9 @@
-use crate::{
-	extension::{Extension, Name, Plugin},
-	Release, Runtime,
-};
+use crate::extension::{Extension, Name, Plugin};
+use crate::{Release, Runtime};
+
+use std::convert::From;
 
 use serde_json::{Map, Value};
-use std::convert::From;
 
 impl From<&Release> for Value {
 	fn from(release: &Release) -> Self {

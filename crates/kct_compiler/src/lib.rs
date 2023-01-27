@@ -1,30 +1,29 @@
-pub mod context;
-pub mod error;
-pub mod extension;
-pub mod prop;
+mod context;
+mod error;
+mod prop;
 mod resolver;
-pub mod runtime;
-pub mod workspace;
+mod runtime;
+mod target;
 
-pub use crate::context::Context;
-pub use crate::error::Error;
-use crate::error::Result;
-use crate::extension::{Extension, Name, Plugins};
-use crate::resolver::*;
-pub use crate::runtime::Runtime;
-pub use crate::workspace::{Workspace, WorkspaceBuilder};
+pub mod extension;
 
-use jrsonnet_evaluator::{
-	error::Error as JrError,
-	error::LocError,
-	trace::{ExplainingFormat, PathResolver},
-	EvaluationState, ManifestFormat, Val,
-};
-use serde_json::Value;
+use self::error::Result;
+use self::extension::{Extension, Name, Plugins};
+use self::resolver::*;
+
+pub use self::context::{Context, ContextBuilder};
+pub use self::error::Error;
+pub use self::runtime::Runtime;
+pub use self::target::{Target, TargetBuilder};
+
 use std::collections::HashMap;
 use std::convert::From;
-
 use std::rc::Rc;
+
+use jrsonnet_evaluator::error::{Error as JrError, LocError};
+use jrsonnet_evaluator::trace::{ExplainingFormat, PathResolver};
+use jrsonnet_evaluator::{EvaluationState, ManifestFormat, Val};
+use serde_json::Value;
 
 pub const VARS_PREFIX: &str = "kct.io";
 
@@ -40,13 +39,13 @@ pub struct Input(pub Value);
 
 pub struct Compiler {
 	context: Context,
-	workspace: Workspace,
+	workspace: Target,
 	plugins: Plugins,
 	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
 impl Compiler {
-	pub fn new(ctx: &Context, wk: Workspace) -> Self {
+	pub fn new(ctx: &Context, wk: Target) -> Self {
 		let mut res = Self {
 			context: ctx.clone(),
 			workspace: wk,

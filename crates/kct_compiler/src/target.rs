@@ -2,14 +2,14 @@ use std::convert::From;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default)]
-pub struct Workspace {
+pub struct Target {
 	dir: PathBuf,
 	main: PathBuf,
 	lib: PathBuf,
 }
 
 // TODO: Call this target -> It's the compilation target!
-impl Workspace {
+impl Target {
 	fn default_lib(root: &Path) -> PathBuf {
 		let mut path = root.to_path_buf();
 		path.push("lib");
@@ -18,7 +18,7 @@ impl Workspace {
 	}
 }
 
-impl Workspace {
+impl Target {
 	pub fn dir(&self) -> &Path {
 		&self.dir
 	}
@@ -33,14 +33,14 @@ impl Workspace {
 }
 
 #[derive(Default)]
-pub struct WorkspaceBuilder {
+pub struct TargetBuilder {
 	dir: Option<PathBuf>,
 	main: Option<PathBuf>,
 	lib: Option<PathBuf>,
 }
 
-impl WorkspaceBuilder {
-	pub fn dir(mut self, root: PathBuf) -> WorkspaceBuilder {
+impl TargetBuilder {
+	pub fn dir(mut self, root: PathBuf) -> TargetBuilder {
 		match self.dir {
 			Some(_) => self,
 			None => {
@@ -51,7 +51,7 @@ impl WorkspaceBuilder {
 		}
 	}
 
-	pub fn main(mut self, main: PathBuf) -> WorkspaceBuilder {
+	pub fn main(mut self, main: PathBuf) -> TargetBuilder {
 		match self.main {
 			Some(_) => self,
 			None => {
@@ -62,11 +62,11 @@ impl WorkspaceBuilder {
 		}
 	}
 
-	pub fn build(self) -> Result<Workspace, String> {
+	pub fn build(self) -> Result<Target, String> {
 		let dir = self.dir.ok_or_else(|| String::from("dir is required"))?;
 		let main = self.main.ok_or_else(|| String::from("main is required"))?;
-		let lib = self.lib.unwrap_or_else(|| Workspace::default_lib(&dir));
+		let lib = self.lib.unwrap_or_else(|| Target::default_lib(&dir));
 
-		Ok(Workspace { dir, main, lib })
+		Ok(Target { dir, main, lib })
 	}
 }

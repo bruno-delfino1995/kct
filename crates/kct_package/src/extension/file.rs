@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+
 use globwalk::{DirEntry, GlobWalkerBuilder};
 use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin};
 use kct_compiler::Runtime;
 use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use std::{collections::HashMap, fs};
 use tera::{Context, Tera};
 
 const TEMPLATES_FOLDER: &str = "files";
