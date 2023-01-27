@@ -1,8 +1,9 @@
 use crate::error::Error as CError;
+use kct_compiler::Release;
 use kct_helper::io;
 use kct_helper::json::{merge, set_in};
 use kct_kube::Filter;
-use kct_package::{Package, Release};
+use kct_package::Package;
 use serde_json::{Map, Value};
 use std::convert::TryFrom;
 use std::env;

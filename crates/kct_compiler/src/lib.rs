@@ -1,18 +1,18 @@
 pub mod context;
+pub mod error;
 pub mod extension;
 pub mod prop;
 mod resolver;
 pub mod runtime;
 pub mod workspace;
 
-pub use self::context::Context;
-use self::extension::include::Include;
-use self::extension::{Extension, Name, Plugins};
-use self::resolver::*;
-pub use self::runtime::Runtime;
-pub use self::workspace::{Workspace, WorkspaceBuilder};
-
-use crate::error::{Error, Result};
+pub use crate::context::Context;
+pub use crate::error::Error;
+use crate::error::Result;
+use crate::extension::{Extension, Name, Plugins};
+use crate::resolver::*;
+pub use crate::runtime::Runtime;
+pub use crate::workspace::{Workspace, WorkspaceBuilder};
 
 use jrsonnet_evaluator::{
 	error::Error as JrError,
@@ -58,8 +58,6 @@ impl Compiler {
 			Some(release) => res.extend(Box::new(release.clone())),
 			None => res,
 		};
-
-		res = res.extend(Box::new(Include));
 
 		res
 	}

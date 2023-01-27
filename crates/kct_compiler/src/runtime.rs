@@ -1,6 +1,6 @@
 use super::workspace::Workspace;
 use super::{Compiler, Context};
-use crate::compiler::extension::Plugins;
+use crate::extension::Plugins;
 
 use std::convert::From;
 

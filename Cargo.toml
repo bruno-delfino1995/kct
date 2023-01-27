@@ -1,12 +1,26 @@
 [workspace]
-
 members = [
 	"bin",
 	"crates/kct_helper",
 	"crates/kct_testing",
 	"crates/kct_kube",
-	"crates/kct_package"
+	"crates/kct_package",
+	"crates/kct_compiler"
 ]
+
+[workspace.package]
+version = "0.5.0"
+edition = "2021"
+license = "MIT"
+authors = ["Bruno Felipe Leal Delfino <bruno.delfino1995@gmail.com>"]
+repository = "https://github.com/bruno-delfino1995/kct"
+
+[workspace.dependencies]
+kct_testing = { path = "./crates/kct_testing", version = "=0.5.0"}
+kct_helper = { path = "./crates/kct_helper", version = "=0.5.0"}
+kct_package = { path = "./crates/kct_package", version = "=0.5.0"}
+kct_kube = { path = "./crates/kct_kube", version = "=0.5.0"}
+kct_compiler = { path = "./crates/kct_compiler", version = "=0.5.0"}
 
 [profile.release]
 strip = "debuginfo"

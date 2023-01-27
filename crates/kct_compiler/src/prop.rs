@@ -1,6 +1,6 @@
 pub use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
 
-use crate::compiler::extension::{Function, Plugin};
+use crate::extension::{Function, Plugin};
 
 use jrsonnet_evaluator::{
 	error::Error as JrError,

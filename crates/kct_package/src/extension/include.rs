@@ -1,6 +1,6 @@
-use crate::compiler::extension::{Callback, Extension, Function, Name, Plugin};
+use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin};
+use kct_compiler::{Compiler, Context, Input, Runtime, Workspace};
 
-use crate::compiler::{Compiler, Context, Input, Runtime, Workspace};
 use crate::Package;
 
 use serde_json::Value;

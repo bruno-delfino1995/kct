@@ -1,6 +1,7 @@
 use kct_testing::{self as testing, dir::TempDir, Fixture};
 
-use kct_package::{Error, Package, Release};
+use kct_compiler::{Error as CError, Release};
+use kct_package::{Error, Package};
 use serde_json::{json, Map, Value};
 use std::convert::TryFrom;
 use std::panic::panic_any;
@@ -12,7 +13,7 @@ fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Erro
 	(package, dir)
 }
 
-fn compile_with_example(pkg: Package, rel: Option<Release>) -> Result<Value, Error> {
+fn compile_with_example(pkg: Package, rel: Option<Release>) -> Result<Value, CError> {
 	let input = pkg.example.clone().unwrap();
 
 	pkg.compile(Some(input), rel)
@@ -119,7 +120,7 @@ mod compile {
 			let rendered = package.compile(Some(input), None).unwrap_err();
 
 			match rendered {
-				Error::InvalidInput => panic_any(rendered.to_string()),
+				CError::InvalidInput => panic_any(rendered.to_string()),
 				_ => panic!("It should be a validation issue!"),
 			}
 		}
@@ -143,7 +144,7 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic_any(err),
+				CError::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -188,7 +189,7 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic_any(err),
+				CError::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -306,7 +307,7 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic_any(err),
+				CError::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -341,7 +342,7 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic_any(err),
+				CError::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -361,7 +362,7 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic_any(err),
+				CError::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}
@@ -499,7 +500,7 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				Error::RenderIssue(err) => panic_any(err),
+				CError::RenderIssue(err) => panic_any(err),
 				_ => panic!("It should be a render issue!"),
 			}
 		}

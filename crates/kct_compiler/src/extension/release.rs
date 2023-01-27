@@ -1,7 +1,6 @@
 use crate::{
-	compiler::extension::{Extension, Name, Plugin},
-	compiler::Runtime,
-	Release,
+	extension::{Extension, Name, Plugin},
+	Release, Runtime,
 };
 
 use serde_json::{Map, Value};

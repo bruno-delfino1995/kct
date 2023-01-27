@@ -1,6 +1,6 @@
 use crate::{
-	compiler::extension::{Extension, Name, Plugin},
-	compiler::{Input, Runtime},
+	extension::{Extension, Name, Plugin},
+	{Input, Runtime},
 };
 
 impl Extension for Input {

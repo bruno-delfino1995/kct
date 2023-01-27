@@ -2,7 +2,7 @@ use std::convert::From;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::compiler::Release;
+use crate::Release;
 
 struct Internal {
 	root: PathBuf,
