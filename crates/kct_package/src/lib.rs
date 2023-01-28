@@ -1,12 +1,12 @@
 mod error;
-mod extension;
+mod property;
 mod schema;
 mod spec;
 
 pub use crate::error::Error;
 
 use crate::error::Result;
-use crate::extension::{File, Include};
+use crate::property::{File, Include};
 use crate::schema::Schema;
 use crate::spec::Spec;
 
@@ -14,7 +14,7 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use kct_compiler::extension::{Extension, Name, Noop, Plugin, Property};
+use kct_compiler::property::{Name, Prop, Property};
 use kct_compiler::ContextBuilder;
 use kct_compiler::Error as CError;
 use kct_compiler::{Compiler, Release, Runtime, Target, TargetBuilder};
@@ -110,17 +110,6 @@ impl TryFrom<&Path> for Package {
 }
 
 impl Package {
-	pub fn extensions(&self) -> Vec<Box<dyn Extension>> {
-		let package = Box::new(self.clone());
-		let schema = self
-			.schema
-			.as_ref()
-			.map(|s| -> Box<dyn Extension> { Box::new(s.clone()) })
-			.unwrap_or(Box::new(Noop));
-
-		vec![package, schema, Box::new(File), Box::new(Include)]
-	}
-
 	pub fn compile(
 		self,
 		input: Option<Value>,
@@ -150,12 +139,22 @@ impl Package {
 		compiler: Compiler,
 		input: Option<Value>,
 	) -> std::result::Result<Value, CError> {
-		let compiler = self
-			.extensions()
-			.into_iter()
-			.fold(compiler, |c, ext| c.extend(ext));
+		let compiler = self.augment(compiler);
 
 		compiler.compile(input)
+	}
+
+	fn augment(self, compiler: Compiler) -> Compiler {
+		let props: Vec<Box<dyn Property>> =
+			vec![Box::new(self.clone()), Box::new(File), Box::new(Include)];
+		let mut compiler = props.into_iter().fold(compiler, |c, p| c.inject(p));
+
+		compiler = match self.schema {
+			Some(schema) => compiler.ensure(schema.into()),
+			None => compiler,
+		};
+
+		compiler
 	}
 }
 
@@ -188,8 +187,8 @@ impl From<&Package> for Value {
 	}
 }
 
-impl Extension for Package {
-	fn plug(&self, _: Runtime) -> Plugin {
-		Plugin::Create(Property::Primitive(Name::Package, self.into()))
+impl Property for Package {
+	fn generate(&self, _: Runtime) -> Prop {
+		Prop::Primitive(Name::Package, self.into())
 	}
 }

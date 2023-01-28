@@ -1,4 +1,4 @@
-use crate::extension::{Function, Property};
+use crate::property::{Function, Prop};
 
 use std::convert::From;
 use std::rc::Rc;
@@ -36,11 +36,11 @@ impl NativeCallbackHandler for Function {
 	}
 }
 
-impl From<Property> for Val {
-	fn from(original: Property) -> Self {
+impl From<Prop> for Val {
+	fn from(original: Prop) -> Self {
 		match original {
-			Property::Primitive(_, value) => Val::from(&value),
-			Property::Callable(name, function) => {
+			Prop::Primitive(_, value) => Val::from(&value),
+			Prop::Callable(name, function) => {
 				let params = function.params.clone();
 
 				let params_desc = {

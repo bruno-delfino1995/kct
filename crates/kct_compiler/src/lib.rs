@@ -3,22 +3,22 @@ mod error;
 mod internal;
 mod runtime;
 mod target;
+mod validator;
 
-pub mod extension;
+pub mod property;
 
 use self::error::Result;
-use self::extension::{Extension, Name, Plugins};
 use self::internal::Internal;
+use self::property::{Name, Prop, Property};
 
 pub use self::context::{Context, ContextBuilder};
 pub use self::error::Error;
 pub use self::runtime::Runtime;
 pub use self::target::{Target, TargetBuilder};
+pub use self::validator::Validator;
 
 use std::collections::HashMap;
-use std::rc::Rc;
 
-use extension::Predicate;
 use jrsonnet_evaluator::Val;
 use serde_json::Value;
 
@@ -32,7 +32,8 @@ pub struct Input(pub Value);
 pub struct Compiler {
 	context: Context,
 	target: Target,
-	plugins: Plugins,
+	props: HashMap<Name, Prop>,
+	checks: Vec<Validator>,
 }
 
 impl Compiler {
@@ -40,21 +41,29 @@ impl Compiler {
 		let mut res = Self {
 			context: context.clone(),
 			target: target.clone(),
-			plugins: Plugins::new(),
+			props: HashMap::new(),
+			checks: Vec::new(),
 		};
 
 		res = match context.release() {
-			Some(release) => res.extend(Box::new(release.clone())),
+			Some(release) => res.inject(Box::new(release.clone())),
 			None => res,
 		};
 
 		res
 	}
 
-	pub fn extend(mut self, ext: Box<dyn Extension>) -> Self {
+	pub fn inject(mut self, property: Box<dyn Property>) -> Self {
 		let runtime: Runtime = (&self).into();
+		let prop = property.generate(runtime);
 
-		self.plugins.put(ext.plug(runtime));
+		self.props.insert(*prop.name(), prop);
+
+		self
+	}
+
+	pub fn ensure(mut self, check: Validator) -> Self {
+		self.checks.push(check);
 
 		self
 	}
@@ -63,7 +72,7 @@ impl Compiler {
 		self.validate(&input)?;
 
 		self = match input {
-			Some(input) => self.extend(Box::new(Input(input))),
+			Some(input) => self.inject(Box::new(Input(input))),
 			None => self,
 		};
 
@@ -77,20 +86,20 @@ impl Compiler {
 		internal.compile()
 	}
 
-	fn properties(&self) -> HashMap<String, Val> {
+	fn properties(&mut self) -> HashMap<String, Val> {
+		let props = std::mem::take(&mut self.props);
+
 		let mut defaults: HashMap<String, Val> = Name::all()
 			.into_iter()
 			.map(|n| (n.as_str().to_string(), Val::Null))
 			.collect();
 
-		let configured: HashMap<String, Val> = self
-			.plugins
-			.iter()
-			.filter_map(|p| p.property())
-			.map(|p| {
-				let name = p.name().as_str();
+		let configured: HashMap<String, Val> = props
+			.into_iter()
+			.map(|(n, p)| {
+				let name = n.as_str();
 
-				(name.to_string(), (*p).clone().into())
+				(name.to_string(), p.into())
 			})
 			.collect();
 
@@ -100,10 +109,7 @@ impl Compiler {
 	}
 
 	fn validate(&self, input: &Option<Value>) -> Result<()> {
-		let funcs: Vec<Rc<dyn Predicate>> =
-			self.plugins.iter().filter_map(|p| p.validator()).collect();
-
-		let is_empty = funcs.is_empty();
+		let is_empty = self.checks.is_empty();
 
 		let input = match (is_empty, input.as_ref()) {
 			(true, None) => return Ok(()),
@@ -112,8 +118,8 @@ impl Compiler {
 			(false, Some(input)) => input,
 		};
 
-		for func in funcs {
-			func(input).map_err(Error::InvalidInput)?;
+		for check in &self.checks {
+			check.run(input).map_err(Error::InvalidInput)?;
 		}
 
 		Ok(())

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
-use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin, Property};
+use kct_compiler::property::{Callback, Function, Name, Prop, Property};
 use kct_compiler::Runtime;
 use serde_json::{Map, Value};
 use tera::{Context, Tera};
@@ -45,19 +44,19 @@ impl Callback for Handler {
 	}
 }
 
-impl Extension for File {
-	fn plug(&self, runtime: Runtime) -> Plugin {
+impl Property for File {
+	fn generate(&self, runtime: Runtime) -> Prop {
 		let root = runtime.target.dir().to_path_buf();
 
 		let params = vec![String::from("name"), String::from("input")];
 		let handler = Handler { root };
 		let function = Function {
 			params,
-			handler: Rc::new(handler),
+			handler: Box::new(handler),
 		};
 
 		let name = Name::File;
-		Plugin::Create(Property::Callable(name, function))
+		Prop::Callable(name, function)
 	}
 }
 

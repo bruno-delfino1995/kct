@@ -4,8 +4,7 @@ use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use kct_compiler::extension::{Extension, Plugin};
-use kct_compiler::Runtime;
+use kct_compiler::Validator;
 use kct_helper::io;
 use serde_json::Value;
 use url::Url;
@@ -56,29 +55,21 @@ impl TryFrom<PathBuf> for Schema {
 	}
 }
 
-impl Schema {
-	pub fn validate(&self, value: &Value) -> bool {
-		let schema = self.scope.resolve(&self.id).unwrap();
-
-		schema.validate(value).is_strictly_valid()
-	}
-}
-
-impl Extension for Schema {
-	fn plug(&self, _: Runtime) -> Plugin {
-		let schema = self.clone();
+impl From<Schema> for Validator {
+	fn from(schema: Schema) -> Self {
 		let predicate = move |input: &Value| -> std::result::Result<(), String> {
 			if !input.is_object() {
 				return Err("input is not an object".to_string());
 			}
 
-			if schema.validate(input) {
+			let schema = schema.scope.resolve(&schema.id).unwrap();
+			if schema.validate(input).is_strictly_valid() {
 				Ok(())
 			} else {
 				Err("input doesn't match your schema".to_string())
 			}
 		};
 
-		Plugin::Verify(Rc::new(predicate))
+		Validator::new(Box::new(predicate))
 	}
 }
