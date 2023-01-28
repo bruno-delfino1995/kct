@@ -1,5 +1,5 @@
-use crate::property::{Name, Prop, Property};
-use crate::{Release, Runtime};
+use crate::property::{Name, Prop};
+use crate::Release;
 
 use std::convert::From;
 
@@ -14,8 +14,8 @@ impl From<&Release> for Value {
 	}
 }
 
-impl Property for Release {
-	fn generate(&self, _: Runtime) -> Prop {
-		Prop::Primitive(Name::Release, self.into())
+impl From<&Release> for Prop {
+	fn from(val: &Release) -> Self {
+		Prop::Primitive(Name::Release, val.into())
 	}
 }

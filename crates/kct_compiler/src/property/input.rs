@@ -1,8 +1,8 @@
-use crate::property::{Name, Prop, Property};
-use crate::{Input, Runtime};
+use crate::property::{Name, Prop};
+use crate::Input;
 
-impl Property for Input {
-	fn generate(&self, _: Runtime) -> Prop {
-		Prop::Primitive(Name::Input, self.0.clone())
+impl From<&Input> for Prop {
+	fn from(val: &Input) -> Self {
+		Prop::Primitive(Name::Input, val.0.clone())
 	}
 }

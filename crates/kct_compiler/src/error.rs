@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
+	#[error("No target to compile")]
+	NoTarget,
 	#[error("No validation provided")]
 	NoValidator,
 	#[error("No input was provided")]
@@ -12,6 +14,8 @@ pub enum Error {
 	RenderIssue(String),
 	#[error("Your template couldn't be parsed as JSON")]
 	InvalidOutput,
+	#[error("{0}")]
+	Wrapped(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

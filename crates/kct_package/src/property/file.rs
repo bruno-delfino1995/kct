@@ -45,8 +45,8 @@ impl Callback for Handler {
 }
 
 impl Property for File {
-	fn generate(&self, runtime: Runtime) -> Prop {
-		let root = runtime.target.dir().to_path_buf();
+	fn generate(&self, runtime: &Runtime) -> Prop {
+		let root = runtime.target().dir().to_path_buf();
 
 		let params = vec![String::from("name"), String::from("input")];
 		let handler = Handler { root };
@@ -57,6 +57,10 @@ impl Property for File {
 
 		let name = Name::File;
 		Prop::Callable(name, function)
+	}
+
+	fn name(&self) -> Name {
+		Name::File
 	}
 }
 

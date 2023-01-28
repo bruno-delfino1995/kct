@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use kct_compiler::property::{Callback, Function, Name, Prop, Property};
-use kct_compiler::{Compiler, Context, Runtime, Target};
+use kct_compiler::{Compiler, Context, Input, Runtime};
 use serde_json::Value;
 
 pub struct Include;
@@ -28,14 +28,14 @@ impl Callback for Handler {
 		let root = self.context.vendor().join(package);
 		let package = Package::try_from(root.as_path()).map_err(|err| err.to_string())?;
 
-		let input: Option<Value> = params.get("input").cloned();
+		let input = params.get("input").cloned().map(|v| (&Input(v)).into());
 
-		let target: Target = (&package).into();
-
-		let compiler = Compiler::new(&self.context, &target);
+		let compiler = Compiler::inherit(&self.context)
+			.with_static_prop(input)
+			.with_target((&package).into());
 
 		let rendered = package
-			.compile_with(compiler, input)
+			.compile_with(compiler)
 			.map_err(|err| err.to_string())?;
 
 		Ok(rendered)
@@ -43,8 +43,8 @@ impl Callback for Handler {
 }
 
 impl Property for Include {
-	fn generate(&self, runtime: Runtime) -> Prop {
-		let context = runtime.context;
+	fn generate(&self, runtime: &Runtime) -> Prop {
+		let context = runtime.context().clone();
 		let params = vec![String::from("name"), String::from("input")];
 		let handler = Handler { context };
 		let function = Function {
@@ -54,5 +54,9 @@ impl Property for Include {
 
 		let name = Name::Include;
 		Prop::Callable(name, function)
+	}
+
+	fn name(&self) -> Name {
+		Name::Include
 	}
 }

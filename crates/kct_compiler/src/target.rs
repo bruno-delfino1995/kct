@@ -9,15 +9,6 @@ pub struct Target {
 }
 
 impl Target {
-	fn default_lib(root: &Path) -> PathBuf {
-		let mut path = root.to_path_buf();
-		path.push("lib");
-
-		path
-	}
-}
-
-impl Target {
 	pub fn dir(&self) -> &Path {
 		&self.dir
 	}
@@ -39,7 +30,7 @@ pub struct TargetBuilder {
 }
 
 impl TargetBuilder {
-	pub fn dir(mut self, root: PathBuf) -> TargetBuilder {
+	pub fn dir(mut self, root: PathBuf) -> Self {
 		match self.dir {
 			Some(_) => self,
 			None => {
@@ -50,7 +41,7 @@ impl TargetBuilder {
 		}
 	}
 
-	pub fn main(mut self, main: PathBuf) -> TargetBuilder {
+	pub fn main(mut self, main: PathBuf) -> Self {
 		match self.main {
 			Some(_) => self,
 			None => {
@@ -64,8 +55,15 @@ impl TargetBuilder {
 	pub fn build(self) -> Result<Target, String> {
 		let dir = self.dir.ok_or_else(|| String::from("dir is required"))?;
 		let main = self.main.ok_or_else(|| String::from("main is required"))?;
-		let lib = self.lib.unwrap_or_else(|| Target::default_lib(&dir));
+		let lib = self.lib.unwrap_or_else(|| default_lib(&dir));
 
 		Ok(Target { dir, main, lib })
 	}
+}
+
+fn default_lib(root: &Path) -> PathBuf {
+	let mut path = root.to_path_buf();
+	path.push("lib");
+
+	path
 }

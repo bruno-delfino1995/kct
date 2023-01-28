@@ -15,15 +15,15 @@ use serde_json::Value;
 
 pub const VARS_PREFIX: &str = "kct.io";
 
-pub struct Internal {
+pub struct Executable {
 	pub vendor: PathBuf,
 	pub lib: PathBuf,
 	pub entrypoint: PathBuf,
 	pub vars: HashMap<String, Val>,
 }
 
-impl Internal {
-	pub fn compile(self) -> Result<Value> {
+impl Executable {
+	pub fn run(self) -> Result<Value> {
 		let render_issue = |err: LocError| {
 			let message = match err.error() {
 				JrError::ImportSyntaxError { path, .. } => {

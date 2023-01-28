@@ -12,12 +12,10 @@ use crate::spec::Spec;
 
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
-use kct_compiler::property::{Name, Prop, Property};
-use kct_compiler::ContextBuilder;
-use kct_compiler::Error as CError;
-use kct_compiler::{Compiler, Release, Runtime, Target, TargetBuilder};
+use kct_compiler::property::{Name, Prop};
+use kct_compiler::{Compiler, Release, Target, TargetBuilder};
+use kct_compiler::{Error as CError, Input};
 use kct_helper::io;
 use serde_json::{Map, Value};
 
@@ -116,41 +114,30 @@ impl Package {
 		release: Option<Release>,
 	) -> std::result::Result<Value, CError> {
 		let target = (&self).into();
+		let input = input.map(|v| (&Input(v)).into());
 
-		let context = {
-			let root = self.root.clone();
+		let compiler = Compiler::bootstrap(&self.root)
+			.with_release(release)
+			.with_target(target)
+			.with_static_prop(input);
 
-			let ctx = ContextBuilder::default()
-				.release(release)
-				.root(root)
-				.build()
-				.unwrap();
-
-			Rc::new(ctx)
-		};
-
-		let compiler = Compiler::new(&context, &target);
-
-		self.compile_with(compiler, input)
+		self.compile_with(compiler)
 	}
 
-	pub fn compile_with(
-		self,
-		compiler: Compiler,
-		input: Option<Value>,
-	) -> std::result::Result<Value, CError> {
+	pub fn compile_with(self, compiler: Compiler) -> std::result::Result<Value, CError> {
 		let compiler = self.augment(compiler);
 
-		compiler.compile(input)
+		compiler.compile()
 	}
 
 	fn augment(self, compiler: Compiler) -> Compiler {
-		let props: Vec<Box<dyn Property>> =
-			vec![Box::new(self.clone()), Box::new(File), Box::new(Include)];
-		let mut compiler = props.into_iter().fold(compiler, |c, p| c.inject(p));
+		let mut compiler = compiler
+			.with_static_prop(Some((&self).into()))
+			.with_dynamic_prop(Some(Box::new(File)))
+			.with_dynamic_prop(Some(Box::new(Include)));
 
 		compiler = match self.schema {
-			Some(schema) => compiler.ensure(schema.into()),
+			Some(schema) => compiler.with_check(schema.into()),
 			None => compiler,
 		};
 
@@ -187,8 +174,8 @@ impl From<&Package> for Value {
 	}
 }
 
-impl Property for Package {
-	fn generate(&self, _: Runtime) -> Prop {
-		Prop::Primitive(Name::Package, self.into())
+impl From<&Package> for Prop {
+	fn from(val: &Package) -> Self {
+		Prop::Primitive(Name::Package, val.into())
 	}
 }

@@ -42,7 +42,9 @@ impl Name {
 }
 
 pub trait Property {
-	fn generate(&self, runtime: Runtime) -> Prop;
+	fn name(&self) -> Name;
+
+	fn generate(&self, runtime: &Runtime) -> Prop;
 }
 
 pub enum Prop {
@@ -59,15 +61,18 @@ impl Prop {
 	}
 }
 
+impl fmt::Debug for Prop {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Prop::Primitive(n, val) => write!(f, "{}: {:?}", n.as_str(), val),
+			Prop::Callable(n, func) => write!(f, "{}({})", n.as_str(), func.params.join(", ")),
+		}
+	}
+}
+
 pub struct Function {
 	pub params: Vec<String>,
 	pub handler: Box<dyn Callback>,
-}
-
-impl fmt::Debug for Function {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "Function")
-	}
 }
 
 pub trait Callback {

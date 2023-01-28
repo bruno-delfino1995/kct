@@ -1,6 +1,5 @@
 use crate::Release;
 
-use std::convert::From;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -12,15 +11,6 @@ struct Internal {
 
 #[derive(Clone)]
 pub struct Context(Rc<Internal>);
-
-impl Context {
-	fn default_vendor(root: &Path) -> PathBuf {
-		let mut path = root.to_path_buf();
-		path.push("vendor");
-
-		path
-	}
-}
 
 impl Context {
 	pub fn root(&self) -> &Path {
@@ -38,13 +28,25 @@ impl Context {
 
 #[derive(Default)]
 pub struct ContextBuilder {
+	built: Option<Context>,
 	root: Option<PathBuf>,
 	release: Option<Release>,
 	vendor: Option<PathBuf>,
 }
 
 impl ContextBuilder {
-	pub fn root(mut self, root: PathBuf) -> ContextBuilder {
+	pub fn wrap(ctx: Context) -> Self {
+		Self {
+			built: Some(ctx),
+			..Default::default()
+		}
+	}
+
+	pub fn root(mut self, root: PathBuf) -> Self {
+		if self.built.is_some() {
+			return self;
+		};
+
 		match self.root {
 			Some(_) => self,
 			None => {
@@ -55,7 +57,11 @@ impl ContextBuilder {
 		}
 	}
 
-	pub fn release(mut self, release: Option<Release>) -> ContextBuilder {
+	pub fn release(mut self, release: Option<Release>) -> Self {
+		if self.built.is_some() {
+			return self;
+		};
+
 		match self.release {
 			Some(_) => self,
 			None => {
@@ -66,12 +72,34 @@ impl ContextBuilder {
 		}
 	}
 
+	pub fn vendor(mut self, vendor: PathBuf) -> Self {
+		if self.built.is_some() {
+			return self;
+		};
+
+		match self.vendor {
+			Some(_) => self,
+			None => {
+				self.vendor = Some(vendor);
+
+				self
+			}
+		}
+	}
+
 	pub fn build(self) -> Result<Context, String> {
+		if let Some(built) = self.built {
+			return Ok(built);
+		}
+
 		let root = self.root.ok_or_else(|| String::from("root is required"))?;
 		let release = self.release;
-		let vendor = self
-			.vendor
-			.unwrap_or_else(|| Context::default_vendor(&root));
+		let vendor = {
+			let mut path = root.clone();
+			path.push("vendor");
+
+			path
+		};
 
 		let internal = Internal {
 			root,
