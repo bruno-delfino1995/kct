@@ -14,10 +14,10 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use kct_compiler::extension::{Extension, Name, Plugin};
+use kct_compiler::extension::{Extension, Name, Noop, Plugin, Property};
 use kct_compiler::ContextBuilder;
 use kct_compiler::Error as CError;
-use kct_compiler::{Compiler, Input, Release, Runtime, Target, TargetBuilder};
+use kct_compiler::{Compiler, Release, Runtime, Target, TargetBuilder};
 use kct_helper::io;
 use serde_json::{Map, Value};
 
@@ -91,6 +91,12 @@ impl TryFrom<&Path> for Package {
 			}
 		};
 
+		match (&schema, &example) {
+			(None, Some(_)) => return Err(Error::NoSchema),
+			(Some(_), None) => return Err(Error::NoExample),
+			_ => (),
+		};
+
 		let package = Package {
 			root,
 			main,
@@ -99,33 +105,20 @@ impl TryFrom<&Path> for Package {
 			example,
 		};
 
-		package
-			.validate_input(&package.example)
-			.map_err(|err| match err {
-				Error::InvalidInput => Error::InvalidExample,
-				Error::NoInput => Error::NoExample,
-				err => err,
-			})?;
-
 		Ok(package)
 	}
 }
 
-/// Methods
 impl Package {
-	pub fn validate_input(&self, input: &Option<Value>) -> Result<()> {
-		let (schema, input) = match (&self.schema, &input) {
-			(None, None) => return Ok(()),
-			(None, Some(_)) => return Err(Error::NoSchema),
-			(Some(_), None) => return Err(Error::NoInput),
-			(Some(schema), Some(input)) => (schema, input),
-		};
+	pub fn extensions(&self) -> Vec<Box<dyn Extension>> {
+		let package = Box::new(self.clone());
+		let schema = self
+			.schema
+			.as_ref()
+			.map(|s| -> Box<dyn Extension> { Box::new(s.clone()) })
+			.unwrap_or(Box::new(Noop));
 
-		if input.is_object() && schema.validate(input) {
-			Ok(())
-		} else {
-			Err(Error::InvalidInput)
-		}
+		vec![package, schema, Box::new(File), Box::new(Include)]
 	}
 
 	pub fn compile(
@@ -133,7 +126,7 @@ impl Package {
 		input: Option<Value>,
 		release: Option<Release>,
 	) -> std::result::Result<Value, CError> {
-		let workspace = (&self).into();
+		let target = (&self).into();
 
 		let context = {
 			let root = self.root.clone();
@@ -147,38 +140,22 @@ impl Package {
 			Rc::new(ctx)
 		};
 
-		let mut compiler = Compiler::new(&context, workspace);
+		let compiler = Compiler::new(&context, &target);
 
-		compiler = match input {
-			None => compiler,
-			Some(input) => compiler.extend(Box::new(Input(input))),
-		};
-
-		self.compile_with(compiler)
+		self.compile_with(compiler, input)
 	}
 
-	pub fn compile_with(self, compiler: Compiler) -> std::result::Result<Value, CError> {
-		let package = self.clone();
-		let validator = move |c: &Compiler| {
-			let runtime: Runtime = c.into();
+	pub fn compile_with(
+		self,
+		compiler: Compiler,
+		input: Option<Value>,
+	) -> std::result::Result<Value, CError> {
+		let compiler = self
+			.extensions()
+			.into_iter()
+			.fold(compiler, |c, ext| c.extend(ext));
 
-			let input = runtime
-				.plugins
-				.get(Name::Input)
-				.and_then(|v| match v.as_ref() {
-					Plugin::Property { value, .. } => Some(value.clone()),
-					_ => None,
-				});
-
-			package.validate_input(&input).is_ok()
-		};
-
-		compiler
-			.extend(Box::new(self))
-			.extend(Box::new(File))
-			.extend(Box::new(Include))
-			.validator(validator)
-			.compile()
+		compiler.compile(input)
 	}
 }
 
@@ -213,9 +190,6 @@ impl From<&Package> for Value {
 
 impl Extension for Package {
 	fn plug(&self, _: Runtime) -> Plugin {
-		Plugin::Property {
-			name: Name::Package,
-			value: self.into(),
-		}
+		Plugin::Create(Property::Primitive(Name::Package, self.into()))
 	}
 }

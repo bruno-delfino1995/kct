@@ -8,7 +8,6 @@ pub struct Target {
 	lib: PathBuf,
 }
 
-// TODO: Call this target -> It's the compilation target!
 impl Target {
 	fn default_lib(root: &Path) -> PathBuf {
 		let mut path = root.to_path_buf();

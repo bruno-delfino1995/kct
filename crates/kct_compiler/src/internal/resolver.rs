@@ -120,8 +120,6 @@ impl ImportResolver for AggregatedImportResolver {
 			}
 		}
 
-		println!("Failed because every resolver failed");
-
 		Err(JrError::ImportFileNotFound(from.to_path_buf(), path.to_path_buf()).into())
 	}
 

@@ -1,7 +1,6 @@
 mod context;
 mod error;
-mod prop;
-mod resolver;
+mod internal;
 mod runtime;
 mod target;
 
@@ -9,7 +8,7 @@ pub mod extension;
 
 use self::error::Result;
 use self::extension::{Extension, Name, Plugins};
-use self::resolver::*;
+use self::internal::Internal;
 
 pub use self::context::{Context, ContextBuilder};
 pub use self::error::Error;
@@ -17,18 +16,11 @@ pub use self::runtime::Runtime;
 pub use self::target::{Target, TargetBuilder};
 
 use std::collections::HashMap;
-use std::convert::From;
 use std::rc::Rc;
 
-use jrsonnet_evaluator::error::{Error as JrError, LocError};
-use jrsonnet_evaluator::trace::{ExplainingFormat, PathResolver};
-use jrsonnet_evaluator::{EvaluationState, ManifestFormat, Val};
+use extension::Predicate;
+use jrsonnet_evaluator::Val;
 use serde_json::Value;
-
-pub const VARS_PREFIX: &str = "kct.io";
-
-pub trait Validator: Fn(&Compiler) -> bool {}
-impl<T: Fn(&Compiler) -> bool> Validator for T {}
 
 #[derive(Clone, Debug)]
 pub struct Release {
@@ -39,21 +31,19 @@ pub struct Input(pub Value);
 
 pub struct Compiler {
 	context: Context,
-	workspace: Target,
+	target: Target,
 	plugins: Plugins,
-	validators: Vec<Rc<Box<dyn Validator>>>,
 }
 
 impl Compiler {
-	pub fn new(ctx: &Context, wk: Target) -> Self {
+	pub fn new(context: &Context, target: &Target) -> Self {
 		let mut res = Self {
-			context: ctx.clone(),
-			workspace: wk,
+			context: context.clone(),
+			target: target.clone(),
 			plugins: Plugins::new(),
-			validators: vec![],
 		};
 
-		res = match ctx.release() {
+		res = match context.release() {
 			Some(release) => res.extend(Box::new(release.clone())),
 			None => res,
 		};
@@ -69,101 +59,63 @@ impl Compiler {
 		self
 	}
 
-	pub fn validator<F: 'static + Validator>(mut self, validator: F) -> Self {
-		self.validators.push(Rc::new(Box::new(validator)));
+	pub fn compile(mut self, input: Option<Value>) -> Result<Value> {
+		self.validate(&input)?;
 
-		self
-	}
-
-	pub fn compile(self) -> Result<Value> {
-		let render_issue = |err: LocError| {
-			let message = match err.error() {
-				JrError::ImportSyntaxError { path, .. } => {
-					format!("syntax error at {}", path.display())
-				}
-				err => err.to_string(),
-			};
-
-			Error::RenderIssue(message)
+		self = match input {
+			Some(input) => self.extend(Box::new(Input(input))),
+			None => self,
 		};
 
-		for validator in self.validators.iter() {
-			if !validator(&self) {
-				return Err(Error::InvalidInput);
-			}
-		}
-
-		let state = self.create_state();
-
-		let variables = self.create_ext_vars();
-		for (name, value) in variables {
-			let name = format!("{VARS_PREFIX}/{name}");
-			state.add_ext_var(name.into(), value);
-		}
-
-		let parsed = state
-			.evaluate_file_raw(self.workspace.main())
-			.map_err(render_issue)?;
-
-		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
-
-		let json = serde_json::from_str(&rendered).map_err(|_err| Error::InvalidOutput)?;
-
-		Ok(json)
-	}
-
-	fn create_ext_vars(&self) -> HashMap<String, Val> {
-		let from_plugin = |p: Name| -> (String, Val) {
-			let default = Val::Null;
-			let name = p.as_str();
-			let property = self.plugins.get(p);
-
-			let val = property
-				.map(|value| {
-					let copy = (*value).clone();
-
-					copy.into()
-				})
-				.unwrap_or(default);
-
-			(String::from(name), val)
+		let internal = Internal {
+			vendor: self.context.vendor().to_path_buf(),
+			lib: self.target.lib().to_path_buf(),
+			entrypoint: self.target.main().to_path_buf(),
+			vars: self.properties(),
 		};
 
-		vec![
-			from_plugin(Name::Package),
-			from_plugin(Name::Release),
-			from_plugin(Name::Input),
-			from_plugin(Name::Include),
-			from_plugin(Name::File),
-		]
-		.into_iter()
-		.collect()
+		internal.compile()
 	}
 
-	fn create_state(&self) -> EvaluationState {
-		let state = EvaluationState::default();
-		let resolver = PathResolver::Absolute;
-		state.set_trace_format(Box::new(ExplainingFormat { resolver }));
+	fn properties(&self) -> HashMap<String, Val> {
+		let mut defaults: HashMap<String, Val> = Name::all()
+			.into_iter()
+			.map(|n| (n.as_str().to_string(), Val::Null))
+			.collect();
 
-		state.with_stdlib();
+		let configured: HashMap<String, Val> = self
+			.plugins
+			.iter()
+			.filter_map(|p| p.property())
+			.map(|p| {
+				let name = p.name().as_str();
 
-		let vendor = self.context.vendor().to_path_buf();
-		let lib = self.workspace.lib().to_path_buf();
+				(name.to_string(), (*p).clone().into())
+			})
+			.collect();
 
-		let relative_resolver = Box::new(RelativeImportResolver);
+		defaults.extend(configured);
 
-		let lib_resolver = Box::new(LibImportResolver {
-			library_paths: vec![lib, vendor],
-		});
+		defaults
+	}
 
-		let resolver = AggregatedImportResolver::default()
-			.push(relative_resolver)
-			.push(lib_resolver);
+	fn validate(&self, input: &Option<Value>) -> Result<()> {
+		let funcs: Vec<Rc<dyn Predicate>> =
+			self.plugins.iter().filter_map(|p| p.validator()).collect();
 
-		state.set_import_resolver(Box::new(resolver));
+		let is_empty = funcs.is_empty();
 
-		state.set_manifest_format(ManifestFormat::Json(0));
+		let input = match (is_empty, input.as_ref()) {
+			(true, None) => return Ok(()),
+			(true, Some(_)) => return Err(Error::NoValidator),
+			(false, None) => return Err(Error::NoInput),
+			(false, Some(input)) => input,
+		};
 
-		state
+		for func in funcs {
+			func(input).map_err(Error::InvalidInput)?;
+		}
+
+		Ok(())
 	}
 }

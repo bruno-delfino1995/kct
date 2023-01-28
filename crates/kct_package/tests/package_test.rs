@@ -55,14 +55,6 @@ mod try_from {
 	}
 
 	#[test]
-	fn example_should_be_valid_input() {
-		let (package, _dir) = package(vec![("example.json", r#"{"nothing": "none"}"#)], vec![]);
-
-		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::InvalidExample);
-	}
-
-	#[test]
 	fn needs_a_main_file() {
 		let (package, _dir) = package(vec![], vec!["templates/main.jsonnet"]);
 
@@ -108,7 +100,7 @@ mod compile {
 		}
 
 		#[test]
-		#[should_panic(expected = "input provided doesn't match the schema")]
+		#[should_panic(expected = "input doesn't match your schema")]
 		fn validate_input() {
 			let input: Value = testing::json(r#"{ "database": null }"#);
 
@@ -121,7 +113,7 @@ mod compile {
 			let rendered = package.compile(Some(input), None).unwrap_err();
 
 			match rendered {
-				CError::InvalidInput => panic_any(rendered.to_string()),
+				CError::InvalidInput(msg) => panic_any(msg),
 				_ => panic!("It should be a validation issue!"),
 			}
 		}

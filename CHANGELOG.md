@@ -12,9 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - order objects at same depth according to their `kind`
 - add `set` to `compile` subcommand to help users change specific inputs
 
+### Changed
+
+- no automatic input for `_.files`, now it gets it from the second parameter
+- `_.files` in libsonnet have an optional second parameter to keep the old experience
+
 ### Removed
 
 - package command was removed because its original purpose is now achieved with jsonnet bundler
+- schema validation for `example.json` - you can compile with it as input to validate it
 
 ## [0.5.0] - 2022-07-01
 

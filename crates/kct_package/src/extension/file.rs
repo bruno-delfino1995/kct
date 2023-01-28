@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
-use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin};
+use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin, Property};
 use kct_compiler::Runtime;
 use serde_json::{Map, Value};
 use tera::{Context, Tera};
@@ -15,7 +15,6 @@ pub struct File;
 
 struct Handler {
 	root: PathBuf,
-	input: Value,
 }
 
 impl Callback for Handler {
@@ -30,7 +29,9 @@ impl Callback for Handler {
 			_ => return Err("name should be a string".into()),
 		};
 
-		let compiled = compile_template(&self.root, file, &self.input)?;
+		let input = params.get("input").cloned().unwrap_or(Value::Null);
+
+		let compiled = compile_template(&self.root, file, &input)?;
 
 		if compiled.is_empty() {
 			Err(format!("No template found for glob {file}"))
@@ -46,26 +47,17 @@ impl Callback for Handler {
 
 impl Extension for File {
 	fn plug(&self, runtime: Runtime) -> Plugin {
-		let root = runtime.workspace.dir().to_path_buf();
+		let root = runtime.target.dir().to_path_buf();
 
-		let input = runtime
-			.plugins
-			.get(Name::Input)
-			.and_then(|v| match v.as_ref() {
-				Plugin::Property { value, .. } => Some(value.clone()),
-				_ => None,
-			})
-			.unwrap_or(Value::Null);
-
-		let params = vec![String::from("name")];
-		let handler = Handler { root, input };
+		let params = vec![String::from("name"), String::from("input")];
+		let handler = Handler { root };
 		let function = Function {
 			params,
 			handler: Rc::new(handler),
 		};
 
 		let name = Name::File;
-		Plugin::Callback { name, function }
+		Plugin::Create(Property::Callable(name, function))
 	}
 }
 

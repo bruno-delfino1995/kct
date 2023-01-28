@@ -1,4 +1,4 @@
-use crate::extension::{Extension, Name, Plugin};
+use crate::extension::{Extension, Name, Plugin, Property};
 use crate::{Release, Runtime};
 
 use std::convert::From;
@@ -16,9 +16,6 @@ impl From<&Release> for Value {
 
 impl Extension for Release {
 	fn plug(&self, _: Runtime) -> Plugin {
-		Plugin::Property {
-			name: Name::Release,
-			value: self.into(),
-		}
+		Plugin::Create(Property::Primitive(Name::Release, self.into()))
 	}
 }

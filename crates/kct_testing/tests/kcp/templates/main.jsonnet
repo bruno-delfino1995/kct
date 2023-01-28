@@ -12,9 +12,9 @@ local _ = import 'kct.libsonnet';
 		package: _.package,
 		release: _.release,
 		files: {
-			multiple: _.files('**/*.toml'),
-			single: _.files('database.toml'),
-			plain: _.files('no-params.txt'),
+			multiple: _.files('**/*.toml', _.input),
+			single: _.files('database.toml', _.input),
+			plain: _.files('no-params.txt', _.input),
 		},
 	},
 }

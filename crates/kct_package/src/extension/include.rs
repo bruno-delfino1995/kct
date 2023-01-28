@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::rc::Rc;
 
-use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin};
-use kct_compiler::{Compiler, Context, Input, Runtime, Target};
+use kct_compiler::extension::{Callback, Extension, Function, Name, Plugin, Property};
+use kct_compiler::{Compiler, Context, Runtime, Target};
 use serde_json::Value;
 
 pub struct Include;
@@ -31,19 +31,12 @@ impl Callback for Handler {
 
 		let input: Option<Value> = params.get("input").cloned();
 
-		let workspace: Target = (&package).into();
+		let target: Target = (&package).into();
 
-		let compiler = Compiler::new(&self.context, workspace);
-
-		let compiler = {
-			match input {
-				None => compiler,
-				Some(input) => compiler.extend(Box::new(Input(input))),
-			}
-		};
+		let compiler = Compiler::new(&self.context, &target);
 
 		let rendered = package
-			.compile_with(compiler)
+			.compile_with(compiler, input)
 			.map_err(|err| err.to_string())?;
 
 		Ok(rendered)
@@ -61,6 +54,6 @@ impl Extension for Include {
 		};
 
 		let name = Name::Include;
-		Plugin::Callback { name, function }
+		Plugin::Create(Property::Callable(name, function))
 	}
 }

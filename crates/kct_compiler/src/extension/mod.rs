@@ -4,42 +4,65 @@ pub mod release;
 use crate::Runtime;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
 use std::rc::Rc;
 
 use serde_json::Value;
 
+// TODO: Create extension for random struct that has name and value and then we create it and only
+// after box it as an extension
+// NOTE: Leverage the Property struct below
+
 pub trait Extension {
 	fn plug(&self, runtime: Runtime) -> Plugin;
 }
 
-#[derive(Clone)]
+pub struct Noop;
+
+impl Extension for Noop {
+	fn plug(&self, _: Runtime) -> Plugin {
+		Plugin::Noop
+	}
+}
+
+#[derive(Clone, Debug)]
+pub enum Property {
+	Primitive(Name, Value),
+	Callable(Name, Function),
+}
+
+pub trait Predicate: Fn(&Value) -> Result<(), String> {}
+impl<T: Fn(&Value) -> Result<(), String>> Predicate for T {}
+
+impl Property {
+	pub fn name(&self) -> &Name {
+		match self {
+			Property::Primitive(n, _) => n,
+			Property::Callable(n, _) => n,
+		}
+	}
+}
+
 pub enum Plugin {
-	Property { name: Name, value: Value },
-	Callback { name: Name, function: Function },
+	Noop,
+	Create(Property),
+	Verify(Rc<dyn Predicate>),
 }
 
 impl Plugin {
-	pub fn name(&self) -> &Name {
-		use Plugin::*;
-
+	pub fn property(&self) -> Option<&Property> {
 		match self {
-			Property { name, .. } => name,
-			Callback { name, .. } => name,
+			Plugin::Create(prop) => Some(prop),
+			_ => None,
 		}
 	}
 
-	pub fn is_property(&self) -> bool {
-		use Plugin::*;
-
+	pub fn validator(&self) -> Option<Rc<dyn Predicate>> {
 		match self {
-			Property { .. } => true,
-			Callback { .. } => false,
+			Plugin::Verify(val) => Some(Rc::clone(val)),
+			_ => None,
 		}
-	}
-
-	pub fn is_callback(&self) -> bool {
-		!self.is_property()
 	}
 }
 
@@ -49,11 +72,17 @@ pub struct Function {
 	pub handler: Rc<dyn Callback>,
 }
 
+impl fmt::Debug for Function {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "Function")
+	}
+}
+
 pub trait Callback {
 	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum Name {
 	File,
 	Include,
@@ -63,6 +92,14 @@ pub enum Name {
 }
 
 impl Name {
+	// TODO: Create a defaults method with `Val::Null` for `Property` and `() -> error` for callbacks
+	// How could we have these defaults registered by implementations instead of at definition level?
+	pub fn all() -> [Name; 5] {
+		use Name::*;
+
+		[File, Include, Input, Package, Release]
+	}
+
 	pub fn as_str(&self) -> &str {
 		use Name::*;
 
@@ -78,7 +115,7 @@ impl Name {
 
 #[derive(Clone)]
 pub struct Plugins {
-	data: HashMap<Name, Rc<Plugin>>,
+	data: Vec<Rc<Plugin>>,
 }
 
 impl Default for Plugins {
@@ -89,40 +126,14 @@ impl Default for Plugins {
 
 impl Plugins {
 	pub fn new() -> Self {
-		Self {
-			data: HashMap::new(),
-		}
+		Self { data: Vec::new() }
 	}
 
 	pub fn put(&mut self, plugin: Plugin) {
-		let name = plugin.name();
-
-		self.data.insert(*name, Rc::new(plugin));
+		self.data.push(Rc::new(plugin));
 	}
 
-	pub fn get(&self, name: Name) -> Option<Rc<Plugin>> {
-		self.data.get(&name).map(Rc::clone)
-	}
-
-	pub fn properties(&self) -> Plugins {
-		let data = self
-			.data
-			.iter()
-			.filter(|(_, p)| p.is_property())
-			.map(|(n, p)| (*n, p.clone()))
-			.collect();
-
-		Self { data }
-	}
-
-	pub fn callbacks(&self) -> Plugins {
-		let data = self
-			.data
-			.iter()
-			.filter(|(_, p)| p.is_callback())
-			.map(|(n, p)| (*n, p.clone()))
-			.collect();
-
-		Self { data }
+	pub fn iter(&self) -> impl Iterator<Item = &Rc<Plugin>> {
+		self.data.iter()
 	}
 }
