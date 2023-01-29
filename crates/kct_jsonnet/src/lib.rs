@@ -9,6 +9,8 @@ use crate::resolver::*;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::mpsc;
+use std::thread;
 
 use jrsonnet_evaluator::error::{Error as JrError, LocError};
 use jrsonnet_evaluator::trace::{ExplainingFormat, PathResolver};
@@ -26,6 +28,16 @@ pub struct Executable {
 
 impl Executable {
 	pub fn run(self) -> Result<Value> {
+		let (tx, rx) = mpsc::channel();
+
+		thread::spawn(move || {
+			tx.send(self.render()).unwrap();
+		});
+
+		rx.recv().unwrap()
+	}
+
+	fn render(self) -> Result<Value> {
 		let render_issue = |err: LocError| {
 			let message = match err.error() {
 				JrError::ImportSyntaxError { path, .. } => {

@@ -6,7 +6,7 @@ mod spec;
 pub use crate::error::Error;
 
 use crate::error::Result;
-use crate::property::{File, Include};
+use crate::property::{Files, Include};
 use crate::schema::Schema;
 use crate::spec::Spec;
 
@@ -133,7 +133,7 @@ impl Package {
 	fn augment(self, compiler: Compiler) -> Compiler {
 		let mut compiler = compiler
 			.with_static_prop(Some((&self).into()))
-			.with_dynamic_prop(Some(Box::new(File)))
+			.with_dynamic_prop(Some(Box::new(Files)))
 			.with_dynamic_prop(Some(Box::new(Include)));
 
 		compiler = match self.schema {

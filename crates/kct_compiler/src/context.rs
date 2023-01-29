@@ -1,7 +1,7 @@
 use crate::Release;
 
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::sync::Arc;
 
 struct Internal {
 	root: PathBuf,
@@ -10,7 +10,7 @@ struct Internal {
 }
 
 #[derive(Clone)]
-pub struct Context(Rc<Internal>);
+pub struct Context(Arc<Internal>);
 
 impl Context {
 	pub fn root(&self) -> &Path {
@@ -107,6 +107,6 @@ impl ContextBuilder {
 			vendor,
 		};
 
-		Ok(Context(Rc::new(internal)))
+		Ok(Context(Arc::new(internal)))
 	}
 }

@@ -437,6 +437,8 @@ mod compile {
 	mod subpackage {
 		use super::*;
 
+		use kct_helper::json::get_in;
+
 		fn subpackage(dir: &TempDir, name: &str, with: Vec<(&str, &str)>, without: Vec<&str>) {
 			let (_package, source) = package(with, without);
 
@@ -490,6 +492,80 @@ mod compile {
 			);
 			let package = root.unwrap();
 
+			let rendered = compile_with_example(package, None).unwrap_err();
+
+			match rendered {
+				CError::RenderIssue(err) => panic_any(err),
+				_ => panic!("It should be a render issue!"),
+			}
+		}
+
+		#[test]
+		fn treat_null_as_no_input() {
+			let contents = &Fixture::contents("example.json");
+			let (root, dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.libsonnet').include('sub', null)",
+				)],
+				vec![],
+			);
+			subpackage(
+				&dir,
+				"sub",
+				vec![("templates/main.jsonnet", contents)],
+				vec!["example.json", "schema.json"],
+			);
+			let package = root.unwrap();
+			let rendered = compile_with_example(package, None);
+
+			let result = testing::json(&Fixture::contents("example.json"));
+
+			assert_eq!(rendered.unwrap(), result);
+		}
+
+		#[test]
+		fn dont_share_global() {
+			let (root, dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"local _ = import 'kct.libsonnet'; { root: _.input, sub: _.include('sub', _.input + { database+: { host: 'localhost'}}) }",
+				)],
+				vec![],
+			);
+			subpackage(
+				&dir,
+				"sub",
+				vec![("templates/main.jsonnet", "(import 'kct.libsonnet').input")],
+				vec![],
+			);
+			let package = root.unwrap();
+			let rendered = compile_with_example(package, None).unwrap();
+
+			let root = get_in(&rendered, &["root", "database", "host"]).unwrap();
+			let sub = get_in(&rendered, &["sub", "database", "host"]).unwrap();
+
+			assert_ne!(root, sub);
+		}
+
+		#[test]
+		#[should_panic(expected = "input provided doesn't match the schema")]
+		fn fail_when_input_is_required() {
+			let contents = &Fixture::contents("example.json");
+			let (root, dir) = package(
+				vec![(
+					"templates/main.jsonnet",
+					"(import 'kct.libsonnet').include('sub', null)",
+				)],
+				vec![],
+			);
+			subpackage(
+				&dir,
+				"sub",
+				vec![("templates/main.jsonnet", contents)],
+				vec![],
+			);
+			let package = root.unwrap();
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {

@@ -1,0 +1,10 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["counter"],
+	"properties": {
+		"counter": {
+			"type": "integer"
+		}
+	}
+}

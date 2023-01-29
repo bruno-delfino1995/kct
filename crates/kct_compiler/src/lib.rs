@@ -78,6 +78,7 @@ impl System {
 
 		let input = match (is_empty, input.as_ref()) {
 			(true, None) => return Ok(()),
+			(true, Some(Value::Null)) => return Ok(()),
 			(true, Some(_)) => return Err(Error::NoValidator),
 			(false, None) => return Err(Error::NoInput),
 			(false, Some(input)) => input,
@@ -174,10 +175,9 @@ impl Compiler {
 	}
 
 	pub fn with_release(mut self, release: Option<Release>) -> Self {
-		self.context = self.context.release(release.clone());
+		self.context = self.context.release(release);
 
-		let prop = release.map(|r| (&r).into());
-		self.with_static_prop(prop)
+		self
 	}
 
 	pub fn with_vendor(mut self, vendor: PathBuf) -> Self {
@@ -203,6 +203,7 @@ impl TryInto<System> for Compiler {
 		let target = self.target.ok_or(Error::NoTarget)?;
 
 		let context = self.context.build().map_err(Error::Wrapped)?;
+		let release = context.release().clone().map(|r| (&r).into());
 
 		let runtime = Runtime { context, target };
 		let dynamics: HashMap<Name, Prop> = self
@@ -212,11 +213,15 @@ impl TryInto<System> for Compiler {
 			.collect();
 
 		let props = {
-			let mut statics = std::mem::take(&mut self.statics);
+			let mut base = std::mem::take(&mut self.statics);
 
-			statics.extend(dynamics);
+			base.extend(dynamics);
 
-			statics
+			if let Some(release) = release {
+				base.insert(Name::Release, release);
+			}
+
+			base
 		};
 
 		Ok(System {

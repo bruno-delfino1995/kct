@@ -18,10 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `_.files` in libsonnet have an optional second parameter to keep the old experience
 - separate package crate into compiler and jsonnet crates
 
+### Fixed
+
+- `_.include` shared same external vars as parent compiler because of thread_local in jrsonnet
+
 ### Removed
 
 - package command was removed because its original purpose is now achieved with jsonnet bundler
 - schema validation for `example.json` - you can compile with it as input to validate it
+
 
 ## [0.5.0] - 2022-07-01
 

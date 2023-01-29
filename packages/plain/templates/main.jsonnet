@@ -5,7 +5,7 @@ _.sdk.inOrder(['namespace', 'deployment'], {
 		apiVersion: "v1",
 		kind: "Namespace",
 		metadata: {
-			name: "simple",
+			name: _.name,
 		}
 	},
 	deployment: {

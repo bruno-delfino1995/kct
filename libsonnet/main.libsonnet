@@ -9,7 +9,7 @@ local include = std.extVar("kct.io/include");
 	input: input,
 	package: package,
 	release: release,
-	files(glob, input=input): files(glob, input),
-	include: include,
+	files(glob, input = input): files(glob, input),
+	include(dep, input = null): include(dep, input),
 	sdk: import 'sdk.libsonnet',
 }

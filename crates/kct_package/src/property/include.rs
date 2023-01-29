@@ -28,10 +28,11 @@ impl Callback for Handler {
 		let root = self.context.vendor().join(package);
 		let package = Package::try_from(root.as_path()).map_err(|err| err.to_string())?;
 
-		let input = params.get("input").cloned().map(|v| (&Input(v)).into());
+		let input = params.get("input").cloned();
+		let prop = input.map(|v| (&Input(v)).into());
 
 		let compiler = Compiler::inherit(&self.context)
-			.with_static_prop(input)
+			.with_static_prop(prop)
 			.with_target((&package).into());
 
 		let rendered = package

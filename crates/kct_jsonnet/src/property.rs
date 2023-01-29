@@ -39,7 +39,7 @@ pub struct Function {
 	pub handler: Box<dyn Callback>,
 }
 
-pub trait Callback {
+pub trait Callback: Send {
 	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
 }
 

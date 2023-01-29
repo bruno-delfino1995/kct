@@ -10,7 +10,7 @@ use tera::{Context, Tera};
 
 const TEMPLATES_FOLDER: &str = "files";
 
-pub struct File;
+pub struct Files;
 
 struct Handler {
 	root: PathBuf,
@@ -44,7 +44,7 @@ impl Callback for Handler {
 	}
 }
 
-impl Generator for File {
+impl Generator for Files {
 	fn generate(&self, runtime: &Runtime) -> Prop {
 		let root = runtime.target().dir().to_path_buf();
 
@@ -55,11 +55,11 @@ impl Generator for File {
 			handler: Box::new(handler),
 		};
 
-		Prop::callable(Name::File, function)
+		Prop::callable(Name::Files, function)
 	}
 
 	fn name(&self) -> Name {
-		Name::File
+		Name::Files
 	}
 }
 

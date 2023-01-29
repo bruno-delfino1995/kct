@@ -11,7 +11,7 @@ pub use kct_jsonnet::property::{Callback, Function, Property};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum Name {
-	File,
+	Files,
 	Include,
 	Input,
 	Package,
@@ -19,20 +19,17 @@ pub enum Name {
 }
 
 impl Name {
-	// TODO: Create a defaults method with `Val::Null` for `Primitive` and `() -> error` for
-	// `Callable`. How could we have these defaults registered by implementations instead of at
-	// definition level?
 	pub fn all() -> [Name; 5] {
 		use Name::*;
 
-		[File, Include, Input, Package, Release]
+		[Files, Include, Input, Package, Release]
 	}
 
 	pub fn as_str(&self) -> &str {
 		use Name::*;
 
 		match self {
-			File => "files",
+			Files => "files",
 			Include => "include",
 			Package => "package",
 			Release => "release",
