@@ -636,11 +636,7 @@ dependencies = [
 name = "kct_compiler"
 version = "0.5.0"
 dependencies = [
- "jrsonnet-evaluator",
- "jrsonnet-gc",
- "jrsonnet-interner",
- "jrsonnet-parser",
- "rustc-hash",
+ "kct_jsonnet",
  "serde",
  "serde_json",
  "thiserror",
@@ -650,6 +646,19 @@ dependencies = [
 name = "kct_helper"
 version = "0.5.0"
 dependencies = [
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "kct_jsonnet"
+version = "0.5.0"
+dependencies = [
+ "jrsonnet-evaluator",
+ "jrsonnet-gc",
+ "jrsonnet-interner",
+ "jrsonnet-parser",
+ "serde",
  "serde_json",
  "thiserror",
 ]

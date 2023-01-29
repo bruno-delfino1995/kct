@@ -3,11 +3,11 @@ pub mod release;
 
 use crate::Runtime;
 
-use std::collections::HashMap;
-use std::fmt;
 use std::hash::Hash;
 
 use serde_json::Value;
+
+pub use kct_jsonnet::property::{Callback, Function, Property};
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum Name {
@@ -41,40 +41,32 @@ impl Name {
 	}
 }
 
-pub trait Property {
+pub trait Generator {
 	fn name(&self) -> Name;
 
 	fn generate(&self, runtime: &Runtime) -> Prop;
 }
 
-pub enum Prop {
-	Primitive(Name, Value),
-	Callable(Name, Function),
-}
+pub struct Prop(Name, Property);
 
 impl Prop {
+	pub fn primitive(name: Name, value: Value) -> Self {
+		Prop(name, Property::Primitive(value))
+	}
+
+	pub fn callable(name: Name, func: Function) -> Self {
+		Prop(name, Property::Callable(name.as_str().to_string(), func))
+	}
+
+	pub fn take(self) -> (Name, Property) {
+		(self.0, self.1)
+	}
+
 	pub fn name(&self) -> &Name {
-		match self {
-			Prop::Primitive(n, _) => n,
-			Prop::Callable(n, _) => n,
-		}
+		&self.0
 	}
-}
 
-impl fmt::Debug for Prop {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Prop::Primitive(n, val) => write!(f, "{}: {:?}", n.as_str(), val),
-			Prop::Callable(n, func) => write!(f, "{}({})", n.as_str(), func.params.join(", ")),
-		}
+	pub fn value(&self) -> Option<&Value> {
+		self.1.value()
 	}
-}
-
-pub struct Function {
-	pub params: Vec<String>,
-	pub handler: Box<dyn Callback>,
-}
-
-pub trait Callback {
-	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
 }

@@ -3,6 +3,6 @@ use crate::Input;
 
 impl From<&Input> for Prop {
 	fn from(val: &Input) -> Self {
-		Prop::Primitive(Name::Input, val.0.clone())
+		Prop::primitive(Name::Input, val.0.clone())
 	}
 }

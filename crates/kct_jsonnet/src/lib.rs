@@ -1,25 +1,27 @@
-mod prop;
+mod error;
 mod resolver;
 
-use self::resolver::*;
+pub mod property;
 
 use crate::error::{Error, Result};
+use crate::property::Property;
+use crate::resolver::*;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use jrsonnet_evaluator::error::{Error as JrError, LocError};
 use jrsonnet_evaluator::trace::{ExplainingFormat, PathResolver};
-use jrsonnet_evaluator::{EvaluationState, ManifestFormat, Val};
+use jrsonnet_evaluator::{EvaluationState, ManifestFormat};
 use serde_json::Value;
 
-pub const VARS_PREFIX: &str = "kct.io";
+const VARS_PREFIX: &str = "kct.io";
 
 pub struct Executable {
 	pub vendor: PathBuf,
 	pub lib: PathBuf,
-	pub entrypoint: PathBuf,
-	pub vars: HashMap<String, Val>,
+	pub main: PathBuf,
+	pub props: HashMap<String, Property>,
 }
 
 impl Executable {
@@ -36,14 +38,12 @@ impl Executable {
 		};
 
 		let state = self.create_state();
-		for (name, value) in self.vars {
-			let name = format!("{VARS_PREFIX}/{name}");
-			state.add_ext_var(name.into(), value);
+		for (name, value) in self.props {
+			let name = format!("{VARS_PREFIX}/{}", name.as_str());
+			state.add_ext_var(name.into(), value.into());
 		}
 
-		let parsed = state
-			.evaluate_file_raw(&self.entrypoint)
-			.map_err(render_issue)?;
+		let parsed = state.evaluate_file_raw(&self.main).map_err(render_issue)?;
 
 		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
 

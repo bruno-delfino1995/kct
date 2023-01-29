@@ -1,14 +1,13 @@
 mod context;
 mod error;
-mod jsonnet;
 mod target;
 mod validator;
 
 pub mod property;
 
 use self::error::Result;
-use self::jsonnet::Executable;
-use self::property::{Name, Prop, Property};
+use self::property::{Generator, Property};
+use self::property::{Name, Prop};
 
 pub use self::context::Context;
 pub use self::error::Error;
@@ -19,7 +18,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use context::ContextBuilder;
-use jrsonnet_evaluator::Val;
+use kct_jsonnet::Executable;
 use serde_json::Value;
 
 #[derive(Clone, Debug)]
@@ -39,7 +38,7 @@ pub(crate) struct System {
 impl System {
 	fn generate(mut self) -> Result<Executable> {
 		let input = match self.props.get(&Name::Input) {
-			Some(Prop::Primitive(_, v)) => Some(v),
+			Some(prop) => prop.value(),
 			_ => None,
 		};
 
@@ -48,31 +47,30 @@ impl System {
 		Ok(Executable {
 			vendor: self.context.vendor().to_path_buf(),
 			lib: self.target.lib().to_path_buf(),
-			entrypoint: self.target.main().to_path_buf(),
-			vars: self.properties(),
+			main: self.target.main().to_path_buf(),
+			props: self.properties(),
 		})
 	}
 
-	fn properties(&mut self) -> HashMap<String, Val> {
+	fn properties(&mut self) -> HashMap<String, Property> {
 		let props = std::mem::take(&mut self.props);
 
-		let mut defaults: HashMap<String, Val> = Name::all()
+		let mut defaults: HashMap<Name, Prop> = Name::all()
 			.into_iter()
-			.map(|n| (n.as_str().to_string(), Val::Null))
+			.map(|n| (n, Prop::primitive(n, Value::Null)))
 			.collect();
 
-		let configured: HashMap<String, Val> = props
-			.into_iter()
-			.map(|(n, p)| {
-				let name = n.as_str();
-
-				(name.to_string(), p.into())
-			})
-			.collect();
-
-		defaults.extend(configured);
+		defaults.extend(props);
 
 		defaults
+			.into_iter()
+			.map(|(k, v)| {
+				let (_, value) = v.take();
+				let name = k.as_str().to_string();
+
+				(name, value)
+			})
+			.collect()
 	}
 
 	fn validate(&self, input: Option<&Value>) -> Result<()> {
@@ -112,7 +110,7 @@ impl Runtime {
 pub struct Compiler {
 	context: ContextBuilder,
 	target: Option<Target>,
-	dynamics: HashMap<Name, Box<dyn Property>>,
+	dynamics: HashMap<Name, Box<dyn Generator>>,
 	statics: HashMap<Name, Prop>,
 	checks: Vec<Validator>,
 }
@@ -142,7 +140,7 @@ impl Compiler {
 		}
 	}
 
-	pub fn with_dynamic_prop(mut self, prop: Option<Box<dyn Property>>) -> Self {
+	pub fn with_dynamic_prop(mut self, prop: Option<Box<dyn Generator>>) -> Self {
 		if let Some(prop) = prop {
 			self.dynamics.insert(prop.name(), prop);
 		}
@@ -192,7 +190,9 @@ impl Compiler {
 		let system: System = self.try_into()?;
 		let executable = system.generate()?;
 
-		executable.run()
+		executable
+			.run()
+			.map_err(|err| Error::RenderIssue(err.to_string()))
 	}
 }
 

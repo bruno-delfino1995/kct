@@ -176,6 +176,6 @@ impl From<&Package> for Value {
 
 impl From<&Package> for Prop {
 	fn from(val: &Package) -> Self {
-		Prop::Primitive(Name::Package, val.into())
+		Prop::primitive(Name::Package, val.into())
 	}
 }

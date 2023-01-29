@@ -16,6 +16,6 @@ impl From<&Release> for Value {
 
 impl From<&Release> for Prop {
 	fn from(val: &Release) -> Self {
-		Prop::Primitive(Name::Release, val.into())
+		Prop::primitive(Name::Release, val.into())
 	}
 }

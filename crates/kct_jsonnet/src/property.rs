@@ -1,15 +1,47 @@
-use crate::property::{Function, Prop};
-
+use std::collections::HashMap;
 use std::convert::From;
+use std::fmt;
+use std::path::Path;
 use std::rc::Rc;
 
 use jrsonnet_evaluator::error::{Error as JrError, LocError};
 use jrsonnet_evaluator::native::{NativeCallback, NativeCallbackHandler};
 use jrsonnet_evaluator::{FuncVal, Val};
+use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
 use jrsonnet_parser::{Param, ParamsDesc};
 use serde_json::Value;
 
-pub use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
+pub enum Property {
+	Primitive(Value),
+	Callable(String, Function),
+}
+
+impl Property {
+	pub fn value(&self) -> Option<&Value> {
+		match self {
+			Property::Primitive(v) => Some(v),
+			_ => None,
+		}
+	}
+}
+
+impl fmt::Debug for Property {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Property::Primitive(val) => write!(f, "{val:?}"),
+			Property::Callable(name, func) => write!(f, "{}({})", name, func.params.join(", ")),
+		}
+	}
+}
+
+pub struct Function {
+	pub params: Vec<String>,
+	pub handler: Box<dyn Callback>,
+}
+
+pub trait Callback {
+	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
+}
 
 impl Finalize for Function {}
 unsafe impl Trace for Function {
@@ -19,7 +51,7 @@ unsafe impl Trace for Function {
 impl NativeCallbackHandler for Function {
 	fn call(
 		&self,
-		_from: Option<Rc<std::path::Path>>,
+		_from: Option<Rc<Path>>,
 		args: &[Val],
 	) -> jrsonnet_evaluator::error::Result<Val> {
 		let names = self.params.clone().into_iter();
@@ -36,11 +68,11 @@ impl NativeCallbackHandler for Function {
 	}
 }
 
-impl From<Prop> for Val {
-	fn from(original: Prop) -> Self {
+impl From<Property> for Val {
+	fn from(original: Property) -> Self {
 		match original {
-			Prop::Primitive(_, value) => Val::from(&value),
-			Prop::Callable(name, function) => {
+			Property::Primitive(value) => Val::from(&value),
+			Property::Callable(name, function) => {
 				let params = function.params.clone();
 
 				let params_desc = {

@@ -3,7 +3,7 @@ use crate::Package;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-use kct_compiler::property::{Callback, Function, Name, Prop, Property};
+use kct_compiler::property::{Callback, Function, Generator, Name, Prop};
 use kct_compiler::{Compiler, Context, Input, Runtime};
 use serde_json::Value;
 
@@ -42,7 +42,7 @@ impl Callback for Handler {
 	}
 }
 
-impl Property for Include {
+impl Generator for Include {
 	fn generate(&self, runtime: &Runtime) -> Prop {
 		let context = runtime.context().clone();
 		let params = vec![String::from("name"), String::from("input")];
@@ -52,8 +52,7 @@ impl Property for Include {
 			handler: Box::new(handler),
 		};
 
-		let name = Name::Include;
-		Prop::Callable(name, function)
+		Prop::callable(Name::Include, function)
 	}
 
 	fn name(&self) -> Name {

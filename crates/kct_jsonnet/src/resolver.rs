@@ -10,10 +10,9 @@ use jrsonnet_interner::IStr;
 
 #[derive(Default)]
 pub struct LibImportResolver {
-	/// Library directories to search for file.
-	/// Referred to as `jpath` in original jsonnet implementation.
 	pub library_paths: Vec<PathBuf>,
 }
+
 impl ImportResolver for LibImportResolver {
 	fn resolve_file(
 		&self,

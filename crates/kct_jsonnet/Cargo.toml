@@ -1,6 +1,6 @@
 [package]
-name = "kct_compiler"
-description = "KCP Compiler"
+name = "kct_jsonnet"
+description = "KCP wrapper around jrsonnet"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,8 +8,10 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+jrsonnet-evaluator = "0.4.2"
+jrsonnet-gc = "0.4.2"
+jrsonnet-interner = "0.4.2"
+jrsonnet-parser = "0.4.2"
 serde = "1.0.115"
 serde_json = "1.0"
 thiserror = "1.0"
-
-kct_jsonnet.workspace = true

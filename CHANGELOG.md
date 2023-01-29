@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - no automatic input for `_.files`, now it gets it from the second parameter
 - `_.files` in libsonnet have an optional second parameter to keep the old experience
+- separate package crate into compiler and jsonnet crates
 
 ### Removed
 

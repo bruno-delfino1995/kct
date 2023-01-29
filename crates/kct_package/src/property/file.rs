@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
-use kct_compiler::property::{Callback, Function, Name, Prop, Property};
+use kct_compiler::property::{Callback, Function, Generator, Name, Prop};
 use kct_compiler::Runtime;
 use serde_json::{Map, Value};
 use tera::{Context, Tera};
@@ -44,7 +44,7 @@ impl Callback for Handler {
 	}
 }
 
-impl Property for File {
+impl Generator for File {
 	fn generate(&self, runtime: &Runtime) -> Prop {
 		let root = runtime.target().dir().to_path_buf();
 
@@ -55,8 +55,7 @@ impl Property for File {
 			handler: Box::new(handler),
 		};
 
-		let name = Name::File;
-		Prop::Callable(name, function)
+		Prop::callable(Name::File, function)
 	}
 
 	fn name(&self) -> Name {
