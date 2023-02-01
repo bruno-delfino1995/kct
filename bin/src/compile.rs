@@ -1,16 +1,17 @@
-use crate::error::Error as CError;
+use crate::error::Error;
+
+use std::convert::TryFrom;
+use std::env;
+use std::path::{Path, PathBuf};
+
+use anyhow::Result;
+use clap::Parser;
 use kct_compiler::Release;
 use kct_helper::io;
 use kct_helper::json::{merge, set_in};
 use kct_kube::Filter;
 use kct_package::Package;
 use serde_json::{Map, Value};
-use std::convert::TryFrom;
-use std::env;
-use std::error::Error;
-use std::path::{Path, PathBuf};
-
-use clap::Parser;
 
 #[derive(Parser)]
 pub struct Args {
@@ -30,9 +31,9 @@ pub struct Args {
 	except: Option<String>,
 }
 
-pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
+pub fn run(args: Args) -> Result<String> {
 	let inputs = {
-		let mut from_files: Vec<Result<Value, String>> = args
+		let mut from_files: Vec<Result<Value, Error>> = args
 			.input
 			.unwrap_or_default()
 			.into_iter()
@@ -40,7 +41,7 @@ pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
 			.map(|path| parse_input(&path))
 			.collect();
 
-		let from_sets: Vec<Result<Value, String>> = args
+		let from_sets: Vec<Result<Value, Error>> = args
 			.set
 			.unwrap_or_default()
 			.into_iter()
@@ -52,7 +53,7 @@ pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
 		from_files
 	};
 
-	let input = merge_inputs(&inputs).map_err(CError::InvalidInput)?;
+	let input = merge_inputs(&inputs)?;
 
 	let output = ensure_output_exists(&args.output)?;
 
@@ -90,21 +91,22 @@ pub fn run(args: Args) -> Result<String, Box<dyn Error>> {
 	}
 }
 
-fn parse_input(path: &Path) -> Result<Value, String> {
+fn parse_input(path: &Path) -> Result<Value, Error> {
 	let contents = if path == PathBuf::from("-") {
-		io::from_stdin().map_err(|err| err.to_string())?
+		io::from_stdin().map_err(|err| Error::InvalidInput("stdin".to_string(), err.to_string()))?
 	} else {
-		io::from_file(path).map_err(|err| err.to_string())?
+		io::from_file(path)
+			.map_err(|err| Error::InvalidInput(format!("{}", path.display()), err.to_string()))?
 	};
 
 	let file = path.to_str().unwrap();
-	let parsed: Value =
-		serde_json::from_str(&contents).map_err(|_err| format!("Unable to parse {file}"))?;
+	let parsed: Value = serde_json::from_str(&contents)
+		.map_err(|err| Error::InvalidInput(file.to_string(), err.to_string()))?;
 
 	Ok(parsed)
 }
 
-fn parse_set(val: &str) -> Result<Value, String> {
+fn parse_set(val: &str) -> Result<Value, Error> {
 	let (name, value) = {
 		let parts = val.split('=').collect::<Vec<&str>>();
 
@@ -113,15 +115,15 @@ fn parse_set(val: &str) -> Result<Value, String> {
 
 	let mut result = Value::Null;
 	let path = name.split('.').collect::<Vec<&str>>();
-	let value = serde_json::from_str(value)
-		.map_err(|_err| format!("unable to parse value manually set for {name}"))?;
+	let value =
+		serde_json::from_str(value).map_err(|err| Error::MalformedInput(err.to_string()))?;
 
 	set_in(&mut result, &path, value);
 
 	Ok(result)
 }
 
-fn merge_inputs(inputs: &[Result<Value, String>]) -> Result<Option<Value>, String> {
+fn merge_inputs(inputs: &[Result<Value, Error>]) -> Result<Option<Value>, Error> {
 	if inputs.is_empty() {
 		return Ok(None);
 	}
@@ -130,10 +132,10 @@ fn merge_inputs(inputs: &[Result<Value, String>]) -> Result<Option<Value>, Strin
 
 	for value in inputs {
 		match value {
-			Err(err) => return Err(err.to_owned()),
+			Err(err) => return Err(Error::MalformedInput(err.to_string())),
 			Ok(input) => match input {
 				Value::Object(_map) => merge(&mut base, input),
-				_ => return Err(String::from("input must be an object")),
+				_ => return Err(Error::MalformedInput("input is not object".to_string())),
 			},
 		}
 	}
@@ -141,7 +143,7 @@ fn merge_inputs(inputs: &[Result<Value, String>]) -> Result<Option<Value>, Strin
 	Ok(Some(base))
 }
 
-fn ensure_output_exists(path: &Option<PathBuf>) -> Result<Option<PathBuf>, String> {
+fn ensure_output_exists(path: &Option<PathBuf>) -> Result<Option<PathBuf>, Error> {
 	match path {
 		None => Ok(None),
 		Some(path) => {
@@ -149,16 +151,16 @@ fn ensure_output_exists(path: &Option<PathBuf>) -> Result<Option<PathBuf>, Strin
 				return Ok(None);
 			}
 
-			let base = env::current_dir().map_err(|err| err.to_string())?;
+			let base = env::current_dir().map_err(|err| Error::InvalidOutput(err.to_string()))?;
 
-			io::ensure_dir_exists(&base, path)
-				.map_err(|err| err.to_string())
-				.map(Some)
+			let path = io::ensure_dir_exists(&base, path)?;
+
+			Ok(Some(path))
 		}
 	}
 }
 
-fn write_objects(root: &Path, objects: Vec<(PathBuf, String)>) -> Result<(), String> {
+fn write_objects(root: &Path, objects: Vec<(PathBuf, String)>) -> Result<(), Error> {
 	for (path, contents) in objects {
 		let target = {
 			let mut base = root.to_path_buf();
@@ -167,7 +169,7 @@ fn write_objects(root: &Path, objects: Vec<(PathBuf, String)>) -> Result<(), Str
 			base.with_extension("yaml")
 		};
 
-		io::write_contents(&target, &contents).map_err(|err| err.to_string())?;
+		io::write_contents(&target, &contents)?;
 	}
 
 	Ok(())

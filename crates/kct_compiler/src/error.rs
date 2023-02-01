@@ -1,6 +1,7 @@
+use kct_jsonnet::Error as JsonnetError;
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum Error {
 	#[error("No target to compile")]
 	NoTarget,
@@ -8,14 +9,18 @@ pub enum Error {
 	NoValidator,
 	#[error("No input was provided")]
 	NoInput,
-	#[error("The input provided doesn't match the schema: {0}")]
+	#[error("The input provided is invalid: {0}")]
 	InvalidInput(String),
-	#[error("An error happened while rendering your templates: {0}")]
-	RenderIssue(String),
 	#[error("Your template couldn't be parsed as JSON")]
 	InvalidOutput,
-	#[error("{0}")]
-	Wrapped(String),
+	#[error("Your context is invalid")]
+	Context(#[from] Context),
+	#[error(transparent)]
+	Executable(#[from] JsonnetError),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+#[derive(Error, Debug)]
+pub enum Context {
+	#[error("root is required")]
+	NoRoot,
+}

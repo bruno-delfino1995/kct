@@ -1,6 +1,7 @@
+use kct_compiler::Error as CompilerError;
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum Error {
 	#[error("Package doesn't have a main template")]
 	NoMain,
@@ -18,6 +19,6 @@ pub enum Error {
 	NoExample,
 	#[error("Invalid example file")]
 	InvalidExample,
+	#[error(transparent)]
+	Compilation(#[from] CompilerError),
 }
-
-pub type Result<T> = std::result::Result<T, Error>;

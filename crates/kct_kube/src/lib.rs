@@ -1,19 +1,15 @@
+pub mod error;
+
+pub use crate::error::Root as Error;
+
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde_json::Value;
-use thiserror::Error;
 use valico::json_schema::Scope;
-
-#[derive(Error, PartialEq, Eq, Debug)]
-pub enum Error {
-	#[error("The rendered json is invalid")]
-	Invalid,
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Default)]
 pub struct Filter {
@@ -97,14 +93,14 @@ impl PartialOrd for Kind {
 }
 
 impl TryFrom<&Value> for Kind {
-	type Error = Error;
+	type Error = error::Object;
 
-	fn try_from(value: &Value) -> std::result::Result<Self, Self::Error> {
+	fn try_from(value: &Value) -> Result<Self, Self::Error> {
 		let kind = value
 			.get("kind")
 			.and_then(|v| v.as_str())
 			.map(|k| k.to_string())
-			.ok_or(Error::Invalid)?;
+			.ok_or(error::Object::NoKind)?;
 
 		Ok(Kind(kind))
 	}
@@ -131,31 +127,33 @@ impl ToString for Track {
 }
 
 impl TryFrom<&str> for Track {
-	type Error = Error;
+	type Error = error::Tracking;
 
-	fn try_from(source: &str) -> std::result::Result<Self, Self::Error> {
+	fn try_from(source: &str) -> Result<Self, Self::Error> {
 		let parts: Vec<String> = source.split(':').map(String::from).collect();
 
-		let field = parts.get(0).map(String::from).ok_or(Error::Invalid)?;
-		let depth = parts
-			.get(1)
-			.map(|d| d.parse())
-			.transpose()
-			.map_err(|_| Error::Invalid)
-			.and_then(|n| n.ok_or(Error::Invalid))?;
-		let order = parts
-			.get(2)
-			.map(|d| d.parse())
-			.transpose()
-			.map_err(|_| Error::Invalid)
-			.and_then(|n| n.ok_or(Error::Invalid))?;
+		if let [field, depth, order] = parts.as_slice() {
+			let field = field.to_string();
+			if !is_valid_path(&field) {
+				return Err(error::Tracking::InvalidPart("field".to_string()));
+			}
 
-		Ok(Track {
-			field,
-			depth,
-			order,
-			kind: None,
-		})
+			let depth = depth
+				.parse()
+				.map_err(|_| error::Tracking::InvalidPart("depth".to_string()))?;
+			let order = order
+				.parse()
+				.map_err(|_| error::Tracking::InvalidPart("order".to_string()))?;
+
+			Ok(Track {
+				field,
+				depth,
+				order,
+				kind: None,
+			})
+		} else {
+			Err(error::Tracking::Format)
+		}
 	}
 }
 
@@ -194,9 +192,9 @@ impl PartialOrd for Track {
 struct Order(Vec<Track>);
 
 impl TryFrom<&Value> for Order {
-	type Error = Error;
+	type Error = error::Object;
 
-	fn try_from(value: &Value) -> std::result::Result<Self, Self::Error> {
+	fn try_from(value: &Value) -> Result<Self, Self::Error> {
 		let annotation = value
 			.get("metadata")
 			.and_then(|m| m.get("annotations"))
@@ -209,7 +207,7 @@ impl TryFrom<&Value> for Order {
 			.into_iter()
 			.filter(|s| !s.is_empty())
 			.map(Track::try_from)
-			.collect::<std::result::Result<Vec<Track>, Self::Error>>()?;
+			.collect::<Result<Vec<Track>, _>>()?;
 
 		Ok(Order(tracking))
 	}
@@ -299,8 +297,8 @@ impl From<&Tracking> for PathBuf {
 	}
 }
 
-pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
-	let mut objects: Vec<(Tracking, Value)> = vec![];
+pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>, Error> {
+	let mut manifests: Vec<(Tracking, Value)> = vec![];
 	let mut walker: Vec<Box<dyn Iterator<Item = (Tracking, &Value)>>> =
 		vec![Box::new(vec![(Tracking::default(), json)].into_iter())];
 
@@ -313,7 +311,7 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 			}
 		};
 
-		if is_object(json) {
+		if is_manifest(json) {
 			let order = Order::try_from(json)?;
 			let tracking = tracking.ordered(order);
 			let kind = Kind::try_from(json)?;
@@ -322,7 +320,7 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 			let path: PathBuf = (&tracked).into();
 
 			if filter.pass(&path) {
-				objects.push((tracked, json.to_owned()));
+				manifests.push((tracked, json.to_owned()));
 			}
 		} else {
 			match json {
@@ -331,7 +329,7 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 
 					for (k, v) in map {
 						if !is_valid_path(k) {
-							return Err(Error::Invalid);
+							Err(error::Output::Path(k.to_string()))?;
 						} else {
 							let track = Track {
 								field: k.clone(),
@@ -346,17 +344,20 @@ pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>> {
 
 					walker.push(Box::new(members.into_iter()));
 				}
-				_ => return Err(Error::Invalid),
+				_ => Err(error::Output::NotObject)?,
 			}
 		}
 	}
 
-	objects.sort_by(|(a, _), (b, _)| a.cmp(b));
+	manifests.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-	Ok(objects.into_iter().map(|(t, v)| ((&t).into(), v)).collect())
+	Ok(manifests
+		.into_iter()
+		.map(|(t, v)| ((&t).into(), v))
+		.collect())
 }
 
-const K8S_OBJECT_SCHEMA: &str = r#"{
+const K8S_MANIFEST_SCHEMA: &str = r#"{
 	"$schema": "http://json-schema.org/schema#",
 	"type": "object",
 	"additionalProperties": true,
@@ -371,8 +372,8 @@ const K8S_OBJECT_SCHEMA: &str = r#"{
 	}
 }"#;
 
-fn is_object(obj: &Value) -> bool {
-	let schema = serde_json::from_str(K8S_OBJECT_SCHEMA).unwrap();
+fn is_manifest(obj: &Value) -> bool {
+	let schema = serde_json::from_str(K8S_MANIFEST_SCHEMA).unwrap();
 
 	let mut scope = Scope::new();
 	let validator = scope.compile_and_return(schema, false).unwrap();

@@ -1,40 +1,37 @@
-use kct_kube::{Error, Filter, Result};
-use kct_testing::compile;
-use serde_json::json;
-use serde_json::Value;
 use std::iter;
 use std::path::PathBuf;
 
-fn obj() -> Value {
+use anyhow::Result;
+use assert_matches::assert_matches;
+use kct_kube::{error, Error, Filter};
+use kct_testing::compile;
+use serde_json::{json, Value};
+
+fn manifest() -> Value {
 	json!({
 		"kind": "Deployment",
 		"apiVersion": "apps/v1"
 	})
 }
 
-type Return = Result<Vec<(PathBuf, Value)>>;
+type Return = Result<Vec<(PathBuf, Value)>, Error>;
 
 fn find_from(val: &Value) -> Return {
 	kct_kube::find(val, &Filter::default())
 }
 
-fn assert_invalid(err: Return) {
-	assert!(err.is_err());
-	assert_eq!(err.unwrap_err(), Error::Invalid);
-}
-
-fn assert_objects(ok: Return, times: usize) {
+fn assert_manifests(ok: Return, times: usize) {
 	assert!(ok.is_ok());
 
-	let obj = obj();
-	let objs: Vec<Value> = iter::repeat(obj).take(times).collect();
+	let manifest = manifest();
+	let manifests: Vec<Value> = iter::repeat(manifest).take(times).collect();
 
 	let rendered: Vec<Value> = ok
 		.unwrap()
 		.into_iter()
 		.map(|(_path, value)| value)
 		.collect();
-	assert_eq!(rendered, objs)
+	assert_eq!(rendered, manifests)
 }
 
 fn assert_paths(ok: Return, paths: Vec<&str>) {
@@ -50,7 +47,7 @@ fn render(contents: &str) -> Value {
 		r#"
 		local _ = import 'kct.libsonnet';
 		local sdk = _.sdk;
-        local obj(kind = 'Deployment') = {{
+        local manifest(kind = 'Deployment') = {{
 			kind: kind,
 			apiVersion: 'apps/v1',
 		}};
@@ -62,28 +59,28 @@ fn render(contents: &str) -> Value {
 	compile(main.as_str())
 }
 
-mod objects {
+mod manifests {
 	use super::*;
 
 	#[test]
-	fn finds_objects() {
-		let json = obj();
+	fn finds_manifests() {
+		let json = manifest();
 		let found = find_from(&json);
-		assert_objects(found, 1);
+		assert_manifests(found, 1);
 
-		let json = json!({"a": obj(), "b": obj()});
+		let json = json!({"a": manifest(), "b": manifest()});
 		let found = find_from(&json);
-		assert_objects(found, 2);
+		assert_manifests(found, 2);
 
 		let json = json!({
 			"a": {
-				"b": obj(),
-				"c": {"d": obj()},
-				"e": obj()
+				"b": manifest(),
+				"c": {"d": manifest()},
+				"e": manifest()
 			}
 		});
 		let found = find_from(&json);
-		assert_objects(found, 3);
+		assert_manifests(found, 3);
 	}
 
 	#[test]
@@ -92,14 +89,14 @@ mod objects {
 			json!(0),
 			json!("obj"),
 			json!(null),
-			json!({"a": 1, "b": obj()}),
-			json!({"a": {"b":{"c": null,"d": obj()}}}),
-			json!({"a": {"b": obj()}, "c": "str"}),
+			json!({"a": 1, "b": manifest()}),
+			json!({"a": {"b":{"c": null,"d": manifest()}}}),
+			json!({"a": {"b": manifest()}, "c": "str"}),
 		];
 
 		for json in values.iter() {
-			let found = find_from(json);
-			assert_invalid(found);
+			let error = find_from(json).unwrap_err();
+			assert_matches!(error, Error::Output(error::Output::NotObject));
 		}
 	}
 }
@@ -109,21 +106,57 @@ mod paths {
 
 	#[test]
 	fn uses_prop_names_as_paths() {
-		let json = json!({"a": {"b": obj()}, "c": {"d": {"e":obj()}}, "b": obj()});
+		let json = json!({"a": {"b": manifest()}, "c": {"d": {"e":manifest()}}, "b": manifest()});
 		let found = find_from(&json);
 
 		assert_paths(found, vec!["/a/b", "/b", "/c/d/e"])
 	}
 
 	#[test]
+	fn allows_only_valid_and_clear_path_segments() {
+		let json = json!({ "01-manifest": manifest() });
+		let found = find_from(&json);
+		assert_paths(found, vec!["/01-manifest"]);
+
+		let cases = vec![
+			json!({ "/": manifest() }),
+			json!({ "a/b": manifest() }),
+			json!({ ".": manifest() }),
+			json!({ "..": manifest() }),
+			json!({ "some%thing": manifest() }),
+			json!({ "this.complicates.filtering": manifest() }),
+			json!({ "-start-alphanumeric": manifest() }),
+			json!({ "end-alphanumeric-": manifest() }),
+		];
+
+		for j in cases {
+			let error = find_from(&j).unwrap_err();
+			assert_matches!(error, Error::Output(error::Output::Path(_)))
+		}
+	}
+
+	#[test]
+	fn disallow_unclear_paths() {
+		let cases = vec![
+			json!([manifest(), manifest()]),
+			json!({"a": manifest(), "b": [manifest(), manifest()]}),
+			json!({"a": {"b": manifest(), "c": [manifest(), manifest()]}}),
+		];
+
+		for j in cases {
+			let error = find_from(&j).unwrap_err();
+			assert_matches!(error, Error::Output(error::Output::NotObject));
+		}
+	}
+
+	#[test]
 	fn orders_props_alphabetically() {
-		let json =
-			json!({"z": obj(), "1": obj(), "01": obj(), "10": obj(), "2": obj(), "a": obj()});
+		let json = json!({"z": manifest(), "1": manifest(), "01": manifest(), "10": manifest(), "2": manifest(), "a": manifest()});
 		let found = find_from(&json);
 
 		assert_paths(found, vec!["/01", "/1", "/10", "/2", "/a", "/z"]);
 
-		let json = json!({"a": {"c": obj(), "b": obj()}, "c": obj(), "b": {"z": obj(), "01": obj(), "a": obj(), "0": obj()}});
+		let json = json!({"a": {"c": manifest(), "b": manifest()}, "c": manifest(), "b": {"z": manifest(), "01": manifest(), "a": manifest(), "0": manifest()}});
 		let found = find_from(&json);
 
 		assert_paths(
@@ -139,7 +172,7 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['a'], {
-					a: sdk.inOrder(['b'], {b: sdk.inOrder(['c'], {c: sdk.inOrder(['d'], {d: sdk.inOrder(['e'], {e: sdk.inOrder(['g', 'f'], {f: obj(), g: obj()})})})})}),
+					a: sdk.inOrder(['b'], {b: sdk.inOrder(['c'], {c: sdk.inOrder(['d'], {d: sdk.inOrder(['e'], {e: sdk.inOrder(['g', 'f'], {f: manifest(), g: manifest()})})})})}),
 				})"#
 			),
 			vec!["/a/b/c/d/e/g", "/a/b/c/d/e/f"]
@@ -148,8 +181,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['b', 'a'], {
-					a: obj(),
-					b: obj()
+					a: manifest(),
+					b: manifest()
 				})"#,
 			),
 			vec!["/b", "/a"],
@@ -158,9 +191,9 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['b'], {
-					a: obj(),
-					b: obj(),
-					c: obj()
+					a: manifest(),
+					b: manifest(),
+					c: manifest()
 				})"#,
 			),
 			vec!["/b", "/a", "/c"],
@@ -169,8 +202,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['e', 'a'], {
-					a: sdk.inOrder(['b','d','c'], {b: obj(), c: obj(), d: obj()}),
-					e: sdk.inOrder(['h', 'g', 'f'], {f: obj(), g: obj(), h: obj()})
+					a: sdk.inOrder(['b','d','c'], {b: manifest(), c: manifest(), d: manifest()}),
+					e: sdk.inOrder(['h', 'g', 'f'], {f: manifest(), g: manifest(), h: manifest()})
 				})"#,
 			),
 			vec!["/e/h", "/e/g", "/e/f", "/a/b", "/a/d", "/a/c"],
@@ -179,11 +212,11 @@ mod paths {
 		cases.push((
 			render(
 				r#"{
-					a: sdk.inOrder(['c', 'b'], {b: obj(), c: obj()}),
+					a: sdk.inOrder(['c', 'b'], {b: manifest(), c: manifest()}),
 					d: sdk.inOrder(['e', 'f', 'i'], {
-						e: obj(),
-						f: sdk.inOrder(['h', 'g'], {g: obj(), h: obj()}),
-						i: obj()
+						e: manifest(),
+						f: sdk.inOrder(['h', 'g'], {g: manifest(), h: manifest()}),
+						i: manifest()
 					})
 				}"#,
 			),
@@ -193,8 +226,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['b', 'a'], {
-					a: sdk.inOrder(['b'], {b: {c: {b: sdk.inOrder(['d'], {d: {a: obj()}, c: obj()})}}, a: obj()}),
-					b: { d: {d: sdk.inOrder(['d'], {c: sdk.inOrder(['c'], {c: {a: obj()}, a: obj()}), d: obj()})}}
+					a: sdk.inOrder(['b'], {b: {c: {b: sdk.inOrder(['d'], {d: {a: manifest()}, c: manifest()})}}, a: manifest()}),
+					b: { d: {d: sdk.inOrder(['d'], {c: sdk.inOrder(['c'], {c: {a: manifest()}, a: manifest()}), d: manifest()})}}
 				})"#,
 			),
 			vec![
@@ -211,19 +244,19 @@ mod paths {
 			render(
 				r#"sdk.inOrder(['y', 'x'], {
 					x: sdk.inOrder(['b', 'a'], {
-						a: obj(),
+						a: manifest(),
 						b: sdk.inOrder(['k','c'], {
-							c: obj(),
+							c: manifest(),
 							d: sdk.inOrder(['e', 'h', 'g'], {
-								e: {f: obj()},
-								g: obj(),
-								h: sdk.inOrder(['j', 'i'], {i: obj(), j: obj()})
+								e: {f: manifest()},
+								g: manifest(),
+								h: sdk.inOrder(['j', 'i'], {i: manifest(), j: manifest()})
 							}),
-							k: obj(),
-							l: {m: obj()}
+							k: manifest(),
+							l: {m: manifest()}
 						})
 					}),
-					y: obj()
+					y: manifest()
 				})"#,
 			),
 			vec![
@@ -246,41 +279,83 @@ mod paths {
 	}
 
 	#[test]
+	fn fails_on_invalid_annotation() {
+		let json = render(
+			r#"{a: manifest() + { metadata+: { annotations+: { 'kct.io/order': 'a:1' }} }}"#,
+		);
+		let error = find_from(&json).unwrap_err();
+
+		assert_matches!(
+			error,
+			Error::Object(error::Object::Tracking(error::Tracking::Format))
+		);
+
+		let json = render(
+			r#"{a: manifest() + { metadata+: { annotations+: { 'kct.io/order': '-:1:1' }} }}"#,
+		);
+		let error = find_from(&json).unwrap_err();
+
+		assert_matches!(error, Error::Object(error::Object::Tracking(error::Tracking::InvalidPart(field))) => {
+			assert_eq!(field, "field")
+		});
+
+		let json = render(
+			r#"{a: manifest() + { metadata+: { annotations+: { 'kct.io/order': 'a:a:1' }} }}"#,
+		);
+		let error = find_from(&json).unwrap_err();
+
+		assert_matches!(error, Error::Object(error::Object::Tracking(error::Tracking::InvalidPart(field))) => {
+			assert_eq!(field, "depth")
+		});
+
+		let json = render(
+			r#"{a: manifest() + { metadata+: { annotations+: { 'kct.io/order': 'a:1:b' }} }}"#,
+		);
+		let error = find_from(&json).unwrap_err();
+
+		assert_matches!(error, Error::Object(error::Object::Tracking(error::Tracking::InvalidPart(field))) => {
+			assert_eq!(field, "order")
+		});
+	}
+
+	#[test]
 	fn orders_props_by_kind() {
 		let mut cases = vec![];
 
 		cases.push((
-			render(r#"{a: obj(), b: obj('Namespace'), c: obj('Pod'), d: obj('Job')}"#),
+			render(
+				r#"{a: manifest(), b: manifest('Namespace'), c: manifest('Pod'), d: manifest('Job')}"#,
+			),
 			vec!["/b", "/c", "/a", "/d"],
 		));
 
 		cases.push((
 			render(
 				r#"sdk.inOrder(['c'], {
-					a: obj('Deployment'),
-					b: obj('Pod'),
-					c: obj('Job'),
-                    d: obj('Namespace')
+					a: manifest('Deployment'),
+					b: manifest('Pod'),
+					c: manifest('Job'),
+                    d: manifest('Namespace')
 				})"#,
 			),
 			vec!["/c", "/d", "/b", "/a"],
 		));
 
 		cases.push((
-			render(r#"{a: obj(), b: obj(), c: obj('Secret')}"#),
+			render(r#"{a: manifest(), b: manifest(), c: manifest('Secret')}"#),
 			vec!["/c", "/a", "/b"],
 		));
 
 		cases.push((
-			render(r#"{a: obj(), b: obj('Unknown'), c: obj()}"#),
+			render(r#"{a: manifest(), b: manifest('Unknown'), c: manifest()}"#),
 			vec!["/a", "/c", "/b"],
 		));
 
 		cases.push((
 			render(
 				r#"{
-				x: {a: obj(), b: obj('Namespace')},
-				y: {a: obj('Secret'), b: obj('Job')},
+				x: {a: manifest(), b: manifest('Namespace')},
+				y: {a: manifest('Secret'), b: manifest('Job')},
 			}"#,
 			),
 			vec!["/x/b", "/x/a", "/y/a", "/y/b"],
@@ -289,9 +364,9 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['y'], {
-				x: obj('Unknown'),
-				y: {a: obj('Secret'), b: obj('Job')},
-				z: {a: obj(), b: obj('Namespace')},
+				x: manifest('Unknown'),
+				y: {a: manifest('Secret'), b: manifest('Job')},
+				z: {a: manifest(), b: manifest('Namespace')},
 			})"#,
 			),
 			vec!["/y/a", "/y/b", "/x", "/z/b", "/z/a"],
@@ -300,10 +375,10 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['d'], {
-				a: obj('Service'),
-				c: {b: obj('Pod'), c: obj('Deployment')},
-				b: obj('Job'),
-				d: obj()
+				a: manifest('Service'),
+				c: {b: manifest('Pod'), c: manifest('Deployment')},
+				b: manifest('Job'),
+				d: manifest()
 			})"#,
 			),
 			vec!["/d", "/a", "/b", "/c/b", "/c/c"],
@@ -314,55 +389,17 @@ mod paths {
 			assert_paths(found, order);
 		}
 	}
-
-	#[test]
-	fn allows_only_valid_and_clear_path_segments() {
-		let json = json!({ "01-obj": obj() });
-		let found = find_from(&json);
-		assert_paths(found, vec!["/01-obj"]);
-
-		let cases = vec![
-			json!({ "/": obj() }),
-			json!({ "a/b": obj() }),
-			json!({ ".": obj() }),
-			json!({ "..": obj() }),
-			json!({ "some%thing": obj() }),
-			json!({ "this.complicates.filtering": obj() }),
-			json!({ "-start-alphanumeric": obj() }),
-			json!({ "end-alphanumeric-": obj() }),
-		];
-
-		for j in cases {
-			let found = find_from(&j);
-			assert_invalid(found)
-		}
-	}
-
-	#[test]
-	fn disallow_unclear_paths() {
-		let cases = vec![
-			json!([obj(), obj()]),
-			json!({"a": obj(), "b": [obj(), obj()]}),
-			json!({"a": {"b": obj(), "c": [obj(), obj()]}}),
-		];
-
-		for j in cases {
-			let found = find_from(&j);
-			assert_invalid(found)
-		}
-	}
 }
 
 mod filter {
 	use super::*;
 
 	fn find_within_minimal(filter: &Filter) -> Return {
-		kct_kube::find(&obj(), filter)
+		kct_kube::find(&manifest(), filter)
 	}
 
 	fn find_within_complex(filter: &Filter) -> Return {
-		let complex =
-			json!({"a": {"b": obj(), "c": {"d": obj(), "e": obj()}, "f": obj()}, "g": obj()});
+		let complex = json!({"a": {"b": manifest(), "c": {"d": manifest(), "e": manifest()}, "f": manifest()}, "g": manifest()});
 
 		kct_kube::find(&complex, filter)
 	}
@@ -389,7 +426,7 @@ mod filter {
 			};
 
 			let found = find_within_complex(&filter);
-			assert_objects(found, amount);
+			assert_manifests(found, amount);
 		}
 
 		let found = find_within_minimal(&Filter {
@@ -397,7 +434,7 @@ mod filter {
 			only: vec![PathBuf::from("/")],
 		});
 
-		assert_objects(found, 1);
+		assert_manifests(found, 1);
 	}
 
 	#[test]
@@ -422,7 +459,7 @@ mod filter {
 			};
 
 			let found = find_within_complex(&filter);
-			assert_objects(found, amount);
+			assert_manifests(found, amount);
 		}
 
 		let found = find_within_minimal(&Filter {
@@ -430,7 +467,7 @@ mod filter {
 			only: vec![],
 		});
 
-		assert_objects(found, 0);
+		assert_manifests(found, 0);
 	}
 
 	#[test]
@@ -462,7 +499,7 @@ mod filter {
 			let filter = Filter { only, except };
 
 			let found = find_within_complex(&filter);
-			assert_objects(found, amount);
+			assert_manifests(found, amount);
 		}
 
 		let found = find_within_minimal(&Filter {
@@ -470,6 +507,6 @@ mod filter {
 			only: vec![PathBuf::from("/")],
 		});
 
-		assert_objects(found, 0);
+		assert_manifests(found, 0);
 	}
 }

@@ -5,7 +5,6 @@ mod spec;
 
 pub use crate::error::Error;
 
-use crate::error::Result;
 use crate::property::{Files, Include};
 use crate::schema::Schema;
 use crate::spec::Spec;
@@ -13,9 +12,10 @@ use crate::spec::Spec;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use kct_compiler::property::{Name, Prop};
+use kct_compiler::Input;
 use kct_compiler::{Compiler, Release, Target, TargetBuilder};
-use kct_compiler::{Error as CError, Input};
 use kct_helper::io;
 use serde_json::{Map, Value};
 
@@ -36,7 +36,7 @@ pub struct Package {
 impl TryFrom<&Path> for Package {
 	type Error = Error;
 
-	fn try_from(root: &Path) -> Result<Self> {
+	fn try_from(root: &Path) -> Result<Self, Self::Error> {
 		let root = PathBuf::from(root);
 
 		let spec = {
@@ -108,11 +108,7 @@ impl TryFrom<&Path> for Package {
 }
 
 impl Package {
-	pub fn compile(
-		self,
-		input: Option<Value>,
-		release: Option<Release>,
-	) -> std::result::Result<Value, CError> {
+	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value, Error> {
 		let target = (&self).into();
 		let input = input.map(|v| (&Input(v)).into());
 
@@ -124,10 +120,12 @@ impl Package {
 		self.compile_with(compiler)
 	}
 
-	pub fn compile_with(self, compiler: Compiler) -> std::result::Result<Value, CError> {
+	pub fn compile_with(self, compiler: Compiler) -> Result<Value, Error> {
 		let compiler = self.augment(compiler);
 
-		compiler.compile()
+		let value = compiler.compile()?;
+
+		Ok(value)
 	}
 
 	fn augment(self, compiler: Compiler) -> Compiler {

@@ -63,11 +63,7 @@ impl Generator for Files {
 	}
 }
 
-fn compile_template(
-	root: &Path,
-	glob: &str,
-	input: &Value,
-) -> std::result::Result<Vec<String>, String> {
+fn compile_template(root: &Path, glob: &str, input: &Value) -> Result<Vec<String>, String> {
 	let mut templates_dir = root.to_path_buf();
 	templates_dir.push(TEMPLATES_FOLDER);
 
@@ -80,7 +76,7 @@ fn compile_template(
 		.map_err(|err| format!("Invalid glob provided ({glob}): {err}"))?;
 
 	let entries: Vec<DirEntry> = globwalker
-		.collect::<std::result::Result<_, _>>()
+		.collect::<Result<_, _>>()
 		.map_err(|err| format!("Unable to resolve globs: {err}"))?;
 
 	let mut paths: Vec<PathBuf> = entries.into_iter().map(DirEntry::into_path).collect();
@@ -90,7 +86,7 @@ fn compile_template(
 	let contents: Vec<String> = paths
 		.into_iter()
 		.map(fs::read_to_string)
-		.collect::<std::result::Result<_, _>>()
+		.collect::<Result<_, _>>()
 		.map_err(|err| format!("Unable to read templates: {err}"))?;
 
 	let context = match input {
@@ -101,7 +97,7 @@ fn compile_template(
 	let compiled: Vec<String> = contents
 		.into_iter()
 		.map(|content| Tera::one_off(&content, &context, true))
-		.collect::<std::result::Result<_, _>>()
+		.collect::<Result<_, _>>()
 		.map_err(|err| format!("Unable to compile templates: {err}"))?;
 
 	Ok(compiled)

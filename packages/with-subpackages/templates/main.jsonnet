@@ -10,6 +10,6 @@ _.sdk.inOrder(['counter', 'plain'], {
 		type: 'Opaque',
 		data: _.input,
 	},
-	plain: _.include('github.com/oddin-org/plain'),
-	counter: _.include('github.com/oddin-org/counter', { counter: _.input.counter - 100 })
+	plain: _.include('github.com/bruno-delfino1995/plain'),
+	counter: _.include('github.com/bruno-delfino1995/counter', { counter: _.input.counter - 100 })
 })

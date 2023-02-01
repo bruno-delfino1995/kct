@@ -2,7 +2,7 @@ mod compile;
 mod error;
 
 use clap::{Parser, Subcommand};
-use std::fmt::Display;
+use std::fmt;
 use std::process;
 
 #[derive(Parser)]
@@ -42,7 +42,7 @@ fn main() {
 	println!("{output}")
 }
 
-fn exit<T: Display, R>(err: T) -> R {
-	eprintln!("{err}");
+fn exit<T: fmt::Debug, R>(err: T) -> R {
+	eprintln!("{err:?}");
 	process::exit(1)
 }

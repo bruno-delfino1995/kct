@@ -1,1 +1,1 @@
-import 'github.com/oddin-org/kct/libsonnet/main.libsonnet'
+import 'github.com/bruno-delfino1995/kct/libsonnet/main.libsonnet'

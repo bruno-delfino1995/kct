@@ -9,6 +9,8 @@ use kct_package::Package;
 use serde_json::Value;
 use tera::{Context, Tera};
 
+pub use serde_json::json;
+
 pub fn json(contents: &str) -> Value {
 	serde_json::from_str(contents).unwrap()
 }

@@ -1,8 +1,9 @@
-use crate::error::{Error, Result};
+use crate::error::Error;
 
 use std::convert::TryFrom;
 use std::path::PathBuf;
 
+use anyhow::Result;
 use kct_helper::io;
 use semver::Version;
 use serde_json::Value;
@@ -16,7 +17,7 @@ pub struct Spec {
 impl TryFrom<PathBuf> for Spec {
 	type Error = Error;
 
-	fn try_from(path: PathBuf) -> Result<Spec> {
+	fn try_from(path: PathBuf) -> Result<Spec, Error> {
 		match io::from_file(&path) {
 			Ok(contents) => {
 				let json: Value =

@@ -9,10 +9,9 @@ pub struct Fixture {}
 
 impl Fixture {
 	fn original() -> PathBuf {
-		let root_dir =
-			env::var("CARGO_MANIFEST_DIR").expect("Unable to read env var: $CARGO_MANIFEST_DIR");
+		let root_dir = env!("CARGO_MANIFEST_DIR");
 
-		let mut source = PathBuf::from(&root_dir);
+		let mut source = PathBuf::from(root_dir);
 		source.push("tests/kcp");
 		source
 	}

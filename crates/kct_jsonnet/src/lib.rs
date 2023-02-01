@@ -3,16 +3,17 @@ mod resolver;
 
 pub mod property;
 
-use crate::error::{Error, Result};
 use crate::property::Property;
 use crate::resolver::*;
+
+pub use crate::error::Error;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
 
-use jrsonnet_evaluator::error::{Error as JrError, LocError};
+use anyhow::Result;
 use jrsonnet_evaluator::trace::{ExplainingFormat, PathResolver};
 use jrsonnet_evaluator::{EvaluationState, ManifestFormat};
 use serde_json::Value;
@@ -27,7 +28,7 @@ pub struct Executable {
 }
 
 impl Executable {
-	pub fn run(self) -> Result<Value> {
+	pub fn run(self) -> Result<Value, Error> {
 		let (tx, rx) = mpsc::channel();
 
 		thread::spawn(move || {
@@ -37,29 +38,18 @@ impl Executable {
 		rx.recv().unwrap()
 	}
 
-	fn render(self) -> Result<Value> {
-		let render_issue = |err: LocError| {
-			let message = match err.error() {
-				JrError::ImportSyntaxError { path, .. } => {
-					format!("syntax error at {}", path.display())
-				}
-				err => err.to_string(),
-			};
-
-			Error::RenderIssue(message)
-		};
-
+	fn render(self) -> Result<Value, Error> {
 		let state = self.create_state();
 		for (name, value) in self.props {
 			let name = format!("{VARS_PREFIX}/{}", name.as_str());
 			state.add_ext_var(name.into(), value.into());
 		}
 
-		let parsed = state.evaluate_file_raw(&self.main).map_err(render_issue)?;
+		let parsed = state.evaluate_file_raw(&self.main).map_err(Error::from)?;
 
-		let rendered = state.manifest(parsed).map_err(render_issue)?.to_string();
+		let rendered = state.manifest(parsed).map_err(Error::from)?.to_string();
 
-		let json = serde_json::from_str(&rendered).map_err(|_err| Error::InvalidOutput)?;
+		let json = serde_json::from_str(&rendered)?;
 
 		Ok(json)
 	}

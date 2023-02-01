@@ -5,7 +5,7 @@ mod validator;
 
 pub mod property;
 
-use self::error::Result;
+use self::context::ContextBuilder;
 use self::property::{Generator, Property};
 use self::property::{Name, Prop};
 
@@ -17,7 +17,7 @@ pub use self::validator::Validator;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use context::ContextBuilder;
+use anyhow::Result;
 use kct_jsonnet::Executable;
 use serde_json::Value;
 
@@ -36,7 +36,7 @@ pub(crate) struct System {
 }
 
 impl System {
-	fn generate(mut self) -> Result<Executable> {
+	fn generate(mut self) -> Result<Executable, Error> {
 		let input = match self.props.get(&Name::Input) {
 			Some(prop) => prop.value(),
 			_ => None,
@@ -73,7 +73,7 @@ impl System {
 			.collect()
 	}
 
-	fn validate(&self, input: Option<&Value>) -> Result<()> {
+	fn validate(&self, input: Option<&Value>) -> Result<(), Error> {
 		let is_empty = self.checks.is_empty();
 
 		let input = match (is_empty, input.as_ref()) {
@@ -186,23 +186,22 @@ impl Compiler {
 		self
 	}
 
-	pub fn compile(self) -> Result<Value> {
+	pub fn compile(self) -> Result<Value, Error> {
 		let system: System = self.try_into()?;
 		let executable = system.generate()?;
+		let value = executable.run()?;
 
-		executable
-			.run()
-			.map_err(|err| Error::RenderIssue(err.to_string()))
+		Ok(value)
 	}
 }
 
 impl TryInto<System> for Compiler {
 	type Error = Error;
 
-	fn try_into(mut self) -> std::result::Result<System, Self::Error> {
+	fn try_into(mut self) -> Result<System, Self::Error> {
 		let target = self.target.ok_or(Error::NoTarget)?;
 
-		let context = self.context.build().map_err(Error::Wrapped)?;
+		let context = self.context.build()?;
 		let release = context.release().clone().map(|r| (&r).into());
 
 		let runtime = Runtime { context, target };

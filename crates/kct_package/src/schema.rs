@@ -1,9 +1,10 @@
-use crate::error::{Error, Result};
+use crate::error::Error;
 
 use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use anyhow::Result;
 use kct_compiler::Validator;
 use kct_helper::io;
 use serde_json::Value;
@@ -26,7 +27,7 @@ impl Clone for Schema {
 impl TryFrom<&Value> for Schema {
 	type Error = Error;
 
-	fn try_from(schema: &Value) -> Result<Self> {
+	fn try_from(schema: &Value) -> Result<Self, Error> {
 		let mut scope = Scope::new();
 		let id = scope
 			.compile(schema.clone(), false)
@@ -40,7 +41,7 @@ impl TryFrom<&Value> for Schema {
 impl TryFrom<PathBuf> for Schema {
 	type Error = Error;
 
-	fn try_from(path: PathBuf) -> Result<Self> {
+	fn try_from(path: PathBuf) -> Result<Self, Error> {
 		match io::from_file(&path) {
 			Ok(contents) => {
 				let schema: Value =
@@ -57,7 +58,7 @@ impl TryFrom<PathBuf> for Schema {
 
 impl From<Schema> for Validator {
 	fn from(schema: Schema) -> Self {
-		let predicate = move |input: &Value| -> std::result::Result<(), String> {
+		let predicate = move |input: &Value| -> Result<(), String> {
 			if !input.is_object() {
 				return Err("input is not an object".to_string());
 			}

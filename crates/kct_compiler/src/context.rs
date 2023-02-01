@@ -1,4 +1,4 @@
-use crate::Release;
+use crate::{error, Release};
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -87,12 +87,12 @@ impl ContextBuilder {
 		}
 	}
 
-	pub fn build(self) -> Result<Context, String> {
+	pub fn build(self) -> Result<Context, error::Context> {
 		if let Some(built) = self.built {
 			return Ok(built);
 		}
 
-		let root = self.root.ok_or_else(|| String::from("root is required"))?;
+		let root = self.root.ok_or(error::Context::NoRoot)?;
 		let release = self.release;
 		let vendor = {
 			let mut path = root.clone();

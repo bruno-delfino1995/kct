@@ -1,7 +1,8 @@
 use std::convert::TryFrom;
 use std::panic::panic_any;
 
-use kct_compiler::{Error as CError, Release};
+use assert_matches::assert_matches;
+use kct_compiler::Release;
 use kct_package::{Error, Package};
 use kct_testing::dir::TempDir;
 use kct_testing::{self as testing, Fixture};
@@ -14,7 +15,7 @@ fn package(with: Vec<(&str, &str)>, without: Vec<&str>) -> (Result<Package, Erro
 	(package, dir)
 }
 
-fn compile_with_example(pkg: Package, rel: Option<Release>) -> Result<Value, CError> {
+fn compile_with_example(pkg: Package, rel: Option<Release>) -> Result<Value, Error> {
 	let input = pkg.example.clone().unwrap();
 
 	pkg.compile(Some(input), rel)
@@ -34,32 +35,28 @@ mod try_from {
 	fn need_spec() {
 		let (package, _dir) = package(vec![], vec!["kcp.json"]);
 
-		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoSpec)
+		assert_matches!(package.unwrap_err(), Error::NoSpec)
 	}
 
 	#[test]
 	fn requests_example_for_schema() {
 		let (package, _dir) = package(vec![], vec!["example.json"]);
 
-		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoExample)
+		assert_matches!(package.unwrap_err(), Error::NoExample)
 	}
 
 	#[test]
 	fn request_schema_for_input() {
 		let (package, _dir) = package(vec![], vec!["schema.json"]);
 
-		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoSchema)
+		assert_matches!(package.unwrap_err(), Error::NoSchema)
 	}
 
 	#[test]
 	fn needs_a_main_file() {
 		let (package, _dir) = package(vec![], vec!["templates/main.jsonnet"]);
 
-		assert!(package.is_err());
-		assert_eq!(package.unwrap_err(), Error::NoMain);
+		assert_matches!(package.unwrap_err(), Error::NoMain);
 	}
 }
 
@@ -100,7 +97,7 @@ mod compile {
 		}
 
 		#[test]
-		#[should_panic(expected = "input doesn't match your schema")]
+		#[should_panic(expected = "input provided is invalid")]
 		fn validate_input() {
 			let input: Value = testing::json(r#"{ "database": null }"#);
 
@@ -113,7 +110,7 @@ mod compile {
 			let rendered = package.compile(Some(input), None).unwrap_err();
 
 			match rendered {
-				CError::InvalidInput(msg) => panic_any(msg),
+				Error::Compilation(err) => panic_any(err.to_string()),
 				_ => panic!("It should be a validation issue!"),
 			}
 		}
@@ -137,8 +134,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 
@@ -182,8 +179,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 
@@ -300,8 +297,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 
@@ -335,8 +332,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 
@@ -355,8 +352,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 	}
@@ -475,7 +472,7 @@ mod compile {
 		// is usefull to guarantee that we pass the correct input while
 		// compiling the subpackage, not to check the realm of invalid packages
 		#[test]
-		#[should_panic(expected = "input provided doesn't match the schema")]
+		#[should_panic(expected = "input provided is invalid")]
 		fn validate_input() {
 			let (root, dir) = package(
 				vec![(
@@ -495,8 +492,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 
@@ -549,8 +546,8 @@ mod compile {
 		}
 
 		#[test]
-		#[should_panic(expected = "input provided doesn't match the schema")]
-		fn fail_when_input_is_required() {
+		#[should_panic(expected = "input provided is invalid")]
+		fn fails_when_input_is_required() {
 			let contents = &Fixture::contents("example.json");
 			let (root, dir) = package(
 				vec![(
@@ -569,8 +566,8 @@ mod compile {
 			let rendered = compile_with_example(package, None).unwrap_err();
 
 			match rendered {
-				CError::RenderIssue(err) => panic_any(err),
-				_ => panic!("It should be a render issue!"),
+				Error::Compilation(err) => panic_any(err.to_string()),
+				_ => panic!("It should be a compilation issue!"),
 			}
 		}
 
