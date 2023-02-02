@@ -5,7 +5,6 @@ mod validator;
 
 pub mod property;
 
-use self::context::ContextBuilder;
 use self::property::{Generator, Property};
 use self::property::{Name, Prop};
 
@@ -15,7 +14,6 @@ pub use self::target::{Target, TargetBuilder};
 pub use self::validator::Validator;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use kct_jsonnet::Executable;
@@ -109,7 +107,7 @@ impl Runtime {
 }
 
 pub struct Compiler {
-	context: ContextBuilder,
+	context: Context,
 	target: Option<Target>,
 	dynamics: HashMap<Name, Box<dyn Generator>>,
 	statics: HashMap<Name, Prop>,
@@ -117,23 +115,9 @@ pub struct Compiler {
 }
 
 impl Compiler {
-	pub fn bootstrap(root: &Path) -> Self {
-		let context = ContextBuilder::default().root(root.to_path_buf());
-
+	pub fn new(context: &Context) -> Self {
 		Self {
-			context,
-			target: None,
-			dynamics: HashMap::new(),
-			statics: HashMap::new(),
-			checks: vec![],
-		}
-	}
-
-	pub fn inherit(ctx: &Context) -> Self {
-		let context = ContextBuilder::wrap(ctx.clone());
-
-		Self {
-			context,
+			context: context.clone(),
 			target: None,
 			dynamics: HashMap::new(),
 			statics: HashMap::new(),
@@ -174,18 +158,6 @@ impl Compiler {
 		}
 	}
 
-	pub fn with_release(mut self, release: Option<Release>) -> Self {
-		self.context = self.context.release(release);
-
-		self
-	}
-
-	pub fn with_vendor(mut self, vendor: PathBuf) -> Self {
-		self.context = self.context.vendor(vendor);
-
-		self
-	}
-
 	pub fn compile(self) -> Result<Value, Error> {
 		let system: System = self.try_into()?;
 		let executable = system.generate()?;
@@ -201,7 +173,7 @@ impl TryInto<System> for Compiler {
 	fn try_into(mut self) -> Result<System, Self::Error> {
 		let target = self.target.ok_or(Error::NoTarget)?;
 
-		let context = self.context.build()?;
+		let context = self.context;
 		let release = context.release().clone().map(|r| (&r).into());
 
 		let runtime = Runtime { context, target };

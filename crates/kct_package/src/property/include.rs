@@ -31,7 +31,7 @@ impl Callback for Handler {
 		let input = params.get("input").cloned();
 		let prop = input.map(|v| (&Input(v)).into());
 
-		let compiler = Compiler::inherit(&self.context)
+		let compiler = Compiler::new(&self.context)
 			.with_static_prop(prop)
 			.with_target((&package).into());
 

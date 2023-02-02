@@ -1,4 +1,4 @@
-use crate::{error, Release};
+use crate::{error, Error, Release};
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -13,6 +13,10 @@ struct Internal {
 pub struct Context(Arc<Internal>);
 
 impl Context {
+	pub fn builder() -> ContextBuilder {
+		ContextBuilder::default()
+	}
+
 	pub fn root(&self) -> &Path {
 		&self.0.root
 	}
@@ -35,13 +39,6 @@ pub struct ContextBuilder {
 }
 
 impl ContextBuilder {
-	pub fn wrap(ctx: Context) -> Self {
-		Self {
-			built: Some(ctx),
-			..Default::default()
-		}
-	}
-
 	pub fn root(mut self, root: PathBuf) -> Self {
 		if self.built.is_some() {
 			return self;
@@ -87,7 +84,7 @@ impl ContextBuilder {
 		}
 	}
 
-	pub fn build(self) -> Result<Context, error::Context> {
+	pub fn build(self) -> Result<Context, Error> {
 		if let Some(built) = self.built {
 			return Ok(built);
 		}

@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use kct_compiler::property::{Name, Prop};
-use kct_compiler::Input;
 use kct_compiler::{Compiler, Release, Target, TargetBuilder};
+use kct_compiler::{Context, Input};
 use kct_helper::io;
 use serde_json::{Map, Value};
 
@@ -110,10 +110,14 @@ impl TryFrom<&Path> for Package {
 impl Package {
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value, Error> {
 		let target = (&self).into();
+		let context = Context::builder()
+			.release(release)
+			.root(self.root.clone())
+			.build()?;
+
 		let input = input.map(|v| (&Input(v)).into());
 
-		let compiler = Compiler::bootstrap(&self.root)
-			.with_release(release)
+		let compiler = Compiler::new(&context)
 			.with_target(target)
 			.with_static_prop(input);
 
