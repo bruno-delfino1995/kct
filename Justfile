@@ -9,6 +9,11 @@ default:
 	cargo fmt --all -- --check
 	cargo clippy -- -D warnings
 
+@clean:
+	fd --no-ignore -t f -e profraw -x rm {}
+	fd 'coverage|incremental' -x rm -rf {} \; target
+	fd '^kct|^libkct' -x rm -rf {} \; target
+
 @test:
 	echo -e "\e[1m\e[4mCompiling plain package\e[0m\n"
 	cargo run -- compile samples/plain
@@ -25,6 +30,17 @@ default:
 
 	echo -e "\e[1m\e[4mCompiling with-subpackages package\e[0m\n"
 	cargo run -- compile -i samples/with-subpackages/example.json samples/with-subpackages
+
+coverage:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	export CARGO_INCREMENTAL=0
+	export RUSTFLAGS="-Cinstrument-coverage"
+	export LLVM_PROFILE_FILE="kct-%p-%m.profraw"
+	cargo test --tests
+	grcov . -s . --binary-path ./target/debug/ -t html --branch --ignore-not-existing -o ./target/debug/coverage/ --ignore 'target/*'
+	echo "Coverage report generated at: ./target/debug/coverage/index.html"
+	fd --no-ignore -t f -e profraw -x rm {}
 
 release:
 	#!/usr/bin/env bash

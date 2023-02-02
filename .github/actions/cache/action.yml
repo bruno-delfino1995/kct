@@ -1,0 +1,62 @@
+name: Cache
+
+inputs:
+  variant:
+    description: Variant to distinguish different caches
+    default: 'default'
+  compiled:
+    description: Should it restore, save, or skip compiled files?
+    default: 'restore'
+  index:
+    description: Should it enable the index cache?
+    default: 'true'
+
+outputs:
+  compiled:
+    description: Cache hit for compiled
+    value: ${{ steps.compiled.outputs.cache-hit }}
+  index:
+    description: Cache hit for index
+    value: ${{ steps.index.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Cache dependencies registry
+      id: index
+      if: inputs.index == 'true' && inputs.compiled != 'save'
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo
+
+    - name: Restore compiled dependencies
+      id: compiled
+      if: inputs.compiled == 'restore'
+      uses: actions/cache/restore@v3
+      with:
+        path: target/
+        key: ${{ runner.os }}-cargo-${{ inputs.variant }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ inputs.variant }}
+          ${{ runner.os }}-cargo-default
+
+    - name: Configure cleanup before cache save
+      if: inputs.compiled == 'save'
+      shell: bash
+      run: |
+        find target \( -name 'coverage' -o -name 'incremental' \) -prune -type d -exec rm -rf {} \;
+        find target \( -name 'libkct*' -o -name 'kct*' \) -prune -exec rm -rf {} \;
+
+    - name: Save compiled dependencies
+      if: inputs.compiled == 'save'
+      uses: actions/cache/save@v3
+      with:
+        path: target/
+        key: ${{ runner.os }}-cargo-${{ inputs.variant }}-${{ hashFiles('**/Cargo.lock') }}

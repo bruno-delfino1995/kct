@@ -28,21 +28,32 @@ on:
 name: Release
 
 jobs:
+  base:
+    uses: ./.github/workflows/base.yml
+
   test:
+    needs: [base]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Setup Rust
-        uses: ./.github/actions/setup
+      - name: Restore cache
+        uses: ./.github/actions/cache
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
 
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all
+          args: --tests
 
   release:
     needs: [test]
@@ -110,30 +121,41 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Setup Rust
-        uses: ./.github/actions/setup
+      - name: Restore cache
+        id: cache
+        uses: ./.github/actions/cache
+        with:
+          variant: release
+          compiled: skip
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
 
       - name: Linux x86 cross compiler
-        if: ${{ startsWith(matrix.target, 'i686-unknown-linux-') }}
+        if: startsWith(matrix.target, 'i686-unknown-linux-')
         run: sudo apt install gcc-multilib
 
       - name: ARM cross compiler
-        if: ${{ startsWith(matrix.target, 'aarch64-unknown-linux-') }}
+        if: startsWith(matrix.target, 'aarch64-unknown-linux-') && steps.cache.outputs.index != 'true'
         uses: actions-rs/cargo@v1
         with:
           command: install
           args: cross
 
       - name: ARM gcc
-        if: ${{ startsWith(matrix.target, 'aarch64-unknown-linux-') }}
+        if: startsWith(matrix.target, 'aarch64-unknown-linux-')
         run: sudo apt install gcc-aarch64-linux-gnu
 
       - name: Musl gcc
-        if: ${{ endsWith(matrix.target, '-musl') }}
+        if: endsWith(matrix.target, '-musl')
         run: sudo apt install musl musl-tools
 
       - name: Run cross build
-        if: ${{ startsWith(matrix.target, 'aarch64-unknown-linux-') }}
+        if: startsWith(matrix.target, 'aarch64-unknown-linux-')
         shell: bash
         run: cross build --bin=kct --release --target ${{ matrix.target }}
 

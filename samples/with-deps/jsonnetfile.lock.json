@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/bruno-delfino1995/kct.git",
+          "subdir": "libsonnet"
+        }
+      },
+      "version": "5769f86aeaf102edeb2b4f23ffbbf6973bdcbe16",
+      "sum": "H8HkyLay9kkcx9EQDlBwTbH3BSJ8qeFAgDXHR/5hMhQ="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/jsonnet-libs.git",
+          "subdir": "ksonnet-util"
+        }
+      },
+      "version": "403e5c69d19e9c3aa963ccf19551f9b3894330d5",
+      "sum": "/pkNOLhRqvQoPA0yYdUuJvpPHqhkCLauAUMD2ZHMIkE="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/docsonnet.git",
+          "subdir": "doc-util"
+        }
+      },
+      "version": "01f689fb4a2d93f0fa4415491e95ea3ca641d6d8",
+      "sum": "yRBlDzGmyJ4eTdfftx51XrRW1fcBrtym+/yJENZywyE="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/jsonnet-libs/k8s-libsonnet.git",
+          "subdir": "1.20"
+        }
+      },
+      "version": "85543e49238903ac14b486321bd3d60fef09d9ef",
+      "sum": "K8hAiyQ4ELAsln24tcwTf/++hKM/3YvLXsOYN0zD8eM="
+    }
+  ],
+  "legacyImports": false
+}
