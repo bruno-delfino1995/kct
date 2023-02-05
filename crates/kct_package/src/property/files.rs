@@ -18,11 +18,7 @@ struct Handler {
 
 impl Callback for Handler {
 	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String> {
-		let name = match params.get("name") {
-			None => return Err("name is required".into()),
-			Some(name) => name,
-		};
-
+		let name = params.get("name").unwrap();
 		let file = match name {
 			Value::String(name) => name,
 			_ => return Err("name should be a string".into()),

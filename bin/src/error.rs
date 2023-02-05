@@ -5,11 +5,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("Failed to parse input({0}): {1}")]
-	InvalidInput(String, String),
-	#[error("Malformed input - {0}")]
-	MalformedInput(String),
-	#[error("Output is invalid: {0}")]
+	#[error("Invalid input: {0}")]
+	InvalidInput(String),
+	#[error("Invalid stream: {0}")]
+	InvalidStream(String),
+	#[error("Invalid output: {0}")]
 	InvalidOutput(String),
 	#[error(transparent)]
 	IO(#[from] IOError),

@@ -1,7 +1,6 @@
 use std::convert::From;
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Default)]
 pub struct Target {
 	dir: PathBuf,
 	main: PathBuf,

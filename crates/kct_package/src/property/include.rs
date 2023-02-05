@@ -15,11 +15,7 @@ struct Handler {
 
 impl Callback for Handler {
 	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String> {
-		let name = match params.get("name") {
-			None => return Err("name is required".into()),
-			Some(name) => name,
-		};
-
+		let name = params.get("name").unwrap();
 		let package = match name {
 			Value::String(name) => name,
 			_ => return Err("name should be a string".into()),
@@ -28,9 +24,7 @@ impl Callback for Handler {
 		let root = self.context.vendor().join(package);
 		let package = Package::try_from(root.as_path()).map_err(|err| err.to_string())?;
 
-		let input = params.get("input").cloned();
-		let prop = input.map(|v| (&Input(v)).into());
-
+		let prop = params.get("input").cloned().map(|v| (&Input(v)).into());
 		let compiler = Compiler::new(&self.context)
 			.with_static_prop(prop)
 			.with_target((&package).into());

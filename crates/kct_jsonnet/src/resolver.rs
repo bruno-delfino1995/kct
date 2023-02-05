@@ -8,7 +8,6 @@ use jrsonnet_evaluator::error::Error as JrError;
 use jrsonnet_evaluator::ImportResolver;
 use jrsonnet_interner::IStr;
 
-#[derive(Default)]
 pub struct LibImportResolver {
 	pub library_paths: Vec<PathBuf>,
 }

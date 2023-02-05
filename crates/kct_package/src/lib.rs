@@ -111,8 +111,8 @@ impl Package {
 	pub fn compile(self, input: Option<Value>, release: Option<Release>) -> Result<Value, Error> {
 		let target = (&self).into();
 		let context = Context::builder()
-			.release(release)
 			.root(self.root.clone())
+			.release(release)
 			.build()?;
 
 		let input = input.map(|v| (&Input(v)).into());

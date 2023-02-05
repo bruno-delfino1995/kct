@@ -8,7 +8,7 @@ use std::process;
 #[derive(Parser)]
 #[command(
 	version,
-	about = "K8s config without hideous templates or context babysitting",
+	about = "Kubernetes templates without hideous language or context babysitting",
 	name = "Kubernetes Configuration Tool"
 )]
 #[command(
@@ -23,10 +23,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-	#[command(
-		name = "compile",
-		about = "Compiles the package into valid K8S objects"
-	)]
+	#[command(name = "compile", about = "Compiles package into valid manifests")]
 	Compile(compile::Args),
 }
 

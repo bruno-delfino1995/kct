@@ -90,7 +90,6 @@ impl System {
 	}
 }
 
-#[derive(Clone)]
 pub struct Runtime {
 	context: Context,
 	target: Target,
