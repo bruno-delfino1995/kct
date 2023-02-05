@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2023-02-05
 
 ### Added
 
@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - no automatic input for `_.files`, now it gets it from the second parameter
-- `_.files` in libsonnet have an optional second parameter to keep the old experience
+- optional input parameter for `_.files` to keep the old experience
+- optional input parameter for `_.include` for packages without input
 - separate package crate into compiler and jsonnet crates
 
 ### Fixed
@@ -26,7 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - package command was removed because its original purpose is now achieved with jsonnet bundler
 - schema validation for `example.json` - you can compile with it as input to validate it
-
 
 ## [0.5.0] - 2022-07-01
 
@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - package description from `kcp.json`
 - "extensibility" guarantees by forbidding non object paths to K8s objects
 
-[Unreleased]: https://github.com/bruno-delfino1995/kct/compare/v0.5.0...HEAD
+[0.6.0]: https://github.com/bruno-delfino1995/kct/compare/v0.6.0...v0.5.0
 [0.5.0]: https://github.com/bruno-delfino1995/kct/compare/v0.5.0...v0.4.0
 [0.4.0]: https://github.com/bruno-delfino1995/kct/compare/v0.4.0...v0.3.1
 [0.3.1]: https://github.com/bruno-delfino1995/kct/compare/v0.3.1...v0.2.0

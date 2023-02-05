@@ -1,6 +1,9 @@
 name: Cache
 
 inputs:
+  rustc:
+    description: Rustc version hash
+    required: true
   variant:
     description: Variant to distinguish different caches
     default: 'default'
@@ -32,9 +35,9 @@ runs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ inputs.rustc }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo
+          ${{ runner.os }}-${{ inputs.rustc }}-cargo
 
     - name: Restore compiled dependencies
       id: compiled
@@ -42,10 +45,10 @@ runs:
       uses: actions/cache/restore@v3
       with:
         path: target/
-        key: ${{ runner.os }}-cargo-${{ inputs.variant }}-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ inputs.rustc }}-cargo-${{ inputs.variant }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-${{ inputs.variant }}
-          ${{ runner.os }}-cargo-default
+          ${{ runner.os }}-${{ inputs.rustc }}-cargo-${{ inputs.variant }}
+          ${{ runner.os }}-${{ inputs.rustc }}-cargo-default
 
     - name: Configure cleanup before cache save
       if: inputs.compiled == 'save'
@@ -59,4 +62,4 @@ runs:
       uses: actions/cache/save@v3
       with:
         path: target/
-        key: ${{ runner.os }}-cargo-${{ inputs.variant }}-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ inputs.rustc }}-cargo-${{ inputs.variant }}-${{ hashFiles('**/Cargo.lock') }}

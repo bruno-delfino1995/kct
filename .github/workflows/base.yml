@@ -10,17 +10,20 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Configure cache
-        id: cache
-        uses: ./.github/actions/cache
-
       - name: Install toolchain
+        id: toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
           components: rustfmt, clippy, llvm-tools
+
+      - name: Configure cache
+        id: cache
+        uses: ./.github/actions/cache
+        with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
 
       - name: Compile project
         if: steps.cache.outputs.compiled != 'true'
@@ -30,20 +33,17 @@ jobs:
 
       - name: Install coverage tool
         if: steps.cache.outputs.index != 'true'
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: grcov
+        shell: bash
+        run: which grcov || cargo install grcov
 
       - name: Install cross compiler
         if: steps.cache.outputs.index != 'true'
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cross
+        shell: bash
+        run: which cross || cargo install cross
 
       - name: Save cache
         if: steps.cache.outputs.compiled != 'true'
         uses: ./.github/actions/cache
         with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
           compiled: save

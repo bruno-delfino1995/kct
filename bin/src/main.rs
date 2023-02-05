@@ -1,9 +1,10 @@
 mod compile;
 mod error;
 
-use clap::{Parser, Subcommand};
 use std::fmt;
 use std::process;
+
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(

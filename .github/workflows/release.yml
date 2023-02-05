@@ -39,15 +39,18 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Restore cache
-        uses: ./.github/actions/cache
-
       - name: Install toolchain
+        id: toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+
+      - name: Restore cache
+        uses: ./.github/actions/cache
+        with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -121,19 +124,20 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Restore cache
-        id: cache
-        uses: ./.github/actions/cache
-        with:
-          variant: release
-          compiled: skip
-
       - name: Install toolchain
+        id: toolchain
         uses: actions-rs/toolchain@v1
         with:
+          target: ${{ matrix.target }}
           profile: minimal
           toolchain: stable
           override: true
+
+      - name: Configure cache
+        uses: ./.github/actions/cache
+        with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
+          compiled: skip
 
       - name: Linux x86 cross compiler
         if: startsWith(matrix.target, 'i686-unknown-linux-')
@@ -141,17 +145,17 @@ jobs:
 
       - name: ARM cross compiler
         if: startsWith(matrix.target, 'aarch64-unknown-linux-') && steps.cache.outputs.index != 'true'
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cross
+        shell: bash
+        run: which cross || cargo install cross
 
       - name: ARM gcc
         if: startsWith(matrix.target, 'aarch64-unknown-linux-')
+        shell: bash
         run: sudo apt install gcc-aarch64-linux-gnu
 
       - name: Musl gcc
         if: endsWith(matrix.target, '-musl')
+        shell: bash
         run: sudo apt install musl musl-tools
 
       - name: Run cross build
@@ -173,7 +177,14 @@ jobs:
           cp ${{ matrix.bin }} ../../../${{ matrix.name }}
 
       - name: Generate SHA-256
+        if: matrix.os != 'windows-latest'
+        shell: bash
         run: shasum -a 256 ${{ matrix.name }} > ${{ matrix.name }}.sha256
+
+      - name: Generate SHA-256 on Windows
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: Get-FileHash ${{ matrix.name }} -Algorithm SHA256 | Out-File -FilePath ${{ matrix.name }}.sha256
 
       - name: Publish
         uses: softprops/action-gh-release@v1

@@ -631,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "kct"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -646,7 +646,7 @@ dependencies = [
 
 [[package]]
 name = "kct_compiler"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "kct_jsonnet",
@@ -656,7 +656,7 @@ dependencies = [
 
 [[package]]
 name = "kct_helper"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "kct_jsonnet"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "jrsonnet-evaluator",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "kct_kube"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "kct_package"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -710,7 +710,7 @@ dependencies = [
 
 [[package]]
 name = "kct_testing"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "fs_extra",
  "kct_package",

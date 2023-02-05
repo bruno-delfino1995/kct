@@ -18,20 +18,22 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Restore cache
-        id: cache
-        uses: ./.github/actions/cache
-        with:
-          variant: coverage
-          compiled: restore
-
       - name: Install toolchain
+        id: toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
           components: llvm-tools
+
+      - name: Restore cache
+        id: cache
+        uses: ./.github/actions/cache
+        with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
+          variant: coverage
+          compiled: restore
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -45,10 +47,8 @@ jobs:
 
       - name: Install coverage tool
         if: steps.cache.outputs.index != 'true'
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: grcov
+        shell: bash
+        run: which grcov || cargo install grcov
 
       - name: Generate coverage report
         shell: bash
@@ -66,6 +66,7 @@ jobs:
       - name: Save cache
         uses: ./.github/actions/cache
         with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
           variant: coverage
           compiled: save
 
@@ -77,16 +78,19 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Configure cache
-        uses: ./.github/actions/cache
-
       - name: Install toolchain
+        id: toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
           components: rustfmt, clippy
+
+      - name: Configure cache
+        uses: ./.github/actions/cache
+        with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1

@@ -1,16 +1,15 @@
 mod args;
 
-use crate::error::Error;
-
-pub use self::args::Args;
 use self::args::Output;
 
-use std::convert::TryFrom;
+pub use self::args::Args;
 
+use crate::error::Error;
+
+use std::convert::TryFrom;
 use std::path::PathBuf;
 
 use anyhow::Result;
-
 use kct_compiler::Release;
 use kct_helper::io::{self, Location};
 use kct_helper::json::merge;
