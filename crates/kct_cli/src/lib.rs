@@ -1,34 +1,14 @@
+mod error;
+
 use crate::error::Error;
 
 use std::convert::Infallible;
-
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::Parser;
-
 use kct_helper::io::{self, Location};
 use kct_helper::json::set_in;
-
 use serde_json::Value;
-
-#[derive(Parser)]
-pub struct Args {
-	#[arg(help = "directory with the package to compile")]
-	pub package: PathBuf,
-	#[arg(help = "set multiple values for the package", long, short)]
-	pub input: Option<Vec<Input>>,
-	#[arg(help = "set specific parameters for the package", long, short)]
-	pub set: Option<Vec<Set>>,
-	#[arg(help = "directory to save compiled manifests", long, short)]
-	pub output: Option<Output>,
-	#[arg(help = "scope your package within a release", long)]
-	pub release: Option<String>,
-	#[arg(help = "comma separated paths to compile", long)]
-	pub only: Option<Paths>,
-	#[arg(help = "comma separated paths to not compile", long)]
-	pub except: Option<Paths>,
-}
 
 #[derive(Clone)]
 pub struct Input(Value);

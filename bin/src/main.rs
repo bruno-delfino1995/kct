@@ -1,9 +1,10 @@
-mod compile;
+mod apply;
+mod delete;
 mod error;
+mod operation;
+mod render;
 
-use std::fmt;
-use std::process;
-
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -25,22 +26,30 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Command {
 	#[command(name = "compile", about = "Compiles package into valid manifests")]
-	Compile(compile::Args),
+	Render(render::Args),
+	#[command(
+		name = "apply",
+		about = "Applies your objects to the currently configured cluster"
+	)]
+	Apply(apply::Args),
+	#[command(
+		name = "delete",
+		about = "Deletes your objects from the currently configured cluster"
+	)]
+	Delete(delete::Args),
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
 	let cli = Cli::parse();
 
 	let result = match cli.command {
-		Command::Compile(args) => compile::run(args),
+		Command::Render(args) => render::run(args)?,
+		Command::Apply(args) => apply::run(args).await?,
+		Command::Delete(args) => delete::run(args).await?,
 	};
 
-	let output = result.unwrap_or_else(exit);
+	println!("{result}");
 
-	println!("{output}")
-}
-
-fn exit<T: fmt::Debug, R>(err: T) -> R {
-	eprintln!("{err:?}");
-	process::exit(1)
+	Ok(())
 }

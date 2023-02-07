@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Root {
+	#[error("value is required")]
+	MissingValue,
 	#[error("The rendered json is invalid")]
 	Output(#[from] Output),
 	#[error("Your object is invalid")]

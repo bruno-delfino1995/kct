@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `apply` and `delete` commands to interact directly with the current cluster
+
+### Changed
+
+- `compile` is now called `render` because compile itself is inherent to all commands that interact with a package
+
 ## [0.6.0] - 2023-02-05
 
 ### Added
@@ -115,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - package description from `kcp.json`
 - "extensibility" guarantees by forbidding non object paths to K8s objects
 
+[Unreleased]: https://github.com/bruno-delfino1995/kct/compare/v0.6.0...HEAD
 [0.6.0]: https://github.com/bruno-delfino1995/kct/compare/v0.6.0...v0.5.0
 [0.5.0]: https://github.com/bruno-delfino1995/kct/compare/v0.5.0...v0.4.0
 [0.4.0]: https://github.com/bruno-delfino1995/kct/compare/v0.4.0...v0.3.1

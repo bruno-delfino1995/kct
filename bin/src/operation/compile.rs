@@ -1,23 +1,34 @@
-mod args;
-
-use self::args::Output;
-
-pub use self::args::Args;
-
 use crate::error::Error;
 
 use std::convert::TryFrom;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use clap::Parser;
+use kct_cli::{Input, Paths, Set};
 use kct_compiler::Release;
-use kct_helper::io::{self, Location};
 use kct_helper::json::merge;
-use kct_kube::Filter;
+use kct_kube::Kube;
 use kct_package::Package;
 use serde_json::{Map, Value};
 
-pub fn run(args: Args) -> Result<String> {
+#[derive(Parser, Clone)]
+pub struct Params {
+	#[arg(help = "directory with the package to compile")]
+	package: PathBuf,
+	#[arg(help = "set multiple values for the package", long, short)]
+	input: Option<Vec<Input>>,
+	#[arg(help = "set specific parameters for the package", long, short)]
+	set: Option<Vec<Set>>,
+	#[arg(help = "scope your package within a release", long)]
+	release: Option<String>,
+	#[arg(help = "comma separated paths to compile", long)]
+	only: Option<Paths>,
+	#[arg(help = "comma separated paths to not compile", long)]
+	except: Option<Paths>,
+}
+
+pub fn run(args: Params) -> Result<Kube> {
 	let input = {
 		let mut inputs = args
 			.input
@@ -45,27 +56,14 @@ pub fn run(args: Args) -> Result<String> {
 
 	let only: Vec<PathBuf> = args.only.map(|v| v.into()).unwrap_or_default();
 	let except: Vec<PathBuf> = args.except.map(|v| v.into()).unwrap_or_default();
-	let filter = Filter { only, except };
-	let objects = kct_kube::find(&rendered, &filter)?;
 
-	let documents: Vec<(PathBuf, String)> = objects
-		.into_iter()
-		.map(|(path, object)| (path, serde_yaml::to_string(&object).unwrap()))
-		.collect();
+	let kube = Kube::builder()
+		.only(only)
+		.except(except)
+		.value(rendered)
+		.build()?;
 
-	let output = ensure_output_exists(&args.output)?;
-	match output {
-		out @ Location::Standard => {
-			let contents = out.write(documents)?;
-
-			Ok(contents)
-		}
-		out @ Location::Path(_) => {
-			let path = out.write(documents)?;
-
-			Ok(format!("Manifests written at \"{path}\""))
-		}
-	}
+	Ok(kube)
 }
 
 fn merge_inputs(inputs: &[Value]) -> Result<Option<Value>, Error> {
@@ -83,17 +81,4 @@ fn merge_inputs(inputs: &[Value]) -> Result<Option<Value>, Error> {
 	}
 
 	Ok(Some(base))
-}
-
-fn ensure_output_exists(output: &Option<Output>) -> Result<Location, Error> {
-	let location = output.as_ref().cloned().map(|out| out.into());
-
-	match location {
-		None | Some(Location::Standard) => Ok(Location::Standard),
-		Some(Location::Path(path)) => {
-			let path = io::ensure_dir_exists(&path)?;
-
-			Ok(Location::Path(path))
-		}
-	}
 }

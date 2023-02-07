@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"bin",
+	"crates/kct_cli",
 	"crates/kct_compiler",
 	"crates/kct_helper",
 	"crates/kct_jsonnet",
@@ -19,6 +20,7 @@ repository = "https://github.com/bruno-delfino1995/kct"
 [workspace.dependencies]
 anyhow = "1.0.68"
 assert_matches = "1.5.0"
+kct_cli = { path = "./crates/kct_cli", version = "=0.6.0"}
 kct_compiler = { path = "./crates/kct_compiler", version = "=0.6.0"}
 kct_helper = { path = "./crates/kct_helper", version = "=0.6.0"}
 kct_jsonnet = { path = "./crates/kct_jsonnet", version = "=0.6.0"}

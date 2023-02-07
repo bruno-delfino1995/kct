@@ -1,391 +1,156 @@
+mod ingest;
+
 pub mod error;
+
+use crate::ingest::Filter;
 
 pub use crate::error::Root as Error;
 
-use std::cmp::Ordering;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use anyhow::Result;
-use lazy_static::lazy_static;
-use regex::Regex;
+use anyhow::{bail, Result};
+
+use kube::api::{Api, DynamicObject, Patch, PatchParams, ResourceExt};
+use kube::core::GroupVersionKind;
+use kube::discovery::{ApiCapabilities, ApiResource, Discovery, Scope};
+use kube::Client;
 use serde_json::Value;
-use valico::json_schema::Scope;
+
+#[derive(Debug)]
+pub struct Manifest(PathBuf, Value);
+
+impl From<Manifest> for (PathBuf, Value) {
+	fn from(val: Manifest) -> Self {
+		let path = val.0;
+		let manifest = val.1;
+
+		(path, manifest)
+	}
+}
+
+impl From<Manifest> for (PathBuf, String) {
+	fn from(val: Manifest) -> Self {
+		let path = val.0;
+		let manifest = serde_yaml::to_string(&val.1).unwrap();
+
+		(path, manifest)
+	}
+}
+
+pub struct Kube {
+	manifests: Vec<Manifest>,
+}
+
+impl Kube {
+	pub fn builder() -> Builder {
+		Default::default()
+	}
+
+	pub async fn apply(self) -> Result<()> {
+		let manifests = self.manifests;
+
+		let client = Client::try_default().await?;
+		let discovery = Discovery::new(client.clone()).run().await?;
+		let ssapply = PatchParams::apply("kubectl-light").force();
+		for Manifest(_, doc) in manifests {
+			let obj: DynamicObject = serde_json::from_value(doc)?;
+			let gvk = if let Some(tm) = &obj.types {
+				GroupVersionKind::try_from(tm)?
+			} else {
+				bail!("cannot apply object without valid TypeMeta {:?}", obj);
+			};
+
+			// TODO: After applying a CRD, we need to find a way to wait until k8s enables its API
+			let name = obj.name_any();
+			if let Some((ar, caps)) = discovery.resolve_gvk(&gvk) {
+				let api = dynamic_api(ar, caps, client.clone());
+				let data: serde_json::Value = serde_json::to_value(&obj)?;
+				let _r = api.patch(&name, &ssapply, &Patch::Apply(data)).await?;
+			}
+		}
+
+		Ok(())
+	}
+
+	pub async fn delete(self) -> Result<()> {
+		let client = Client::try_default().await?;
+		let discovery = Discovery::new(client.clone()).run().await?;
+
+		let mut manifests = self.manifests;
+		manifests.reverse();
+		for Manifest(_, doc) in manifests {
+			let obj: DynamicObject = serde_json::from_value(doc)?;
+			let gvk = if let Some(tm) = &obj.types {
+				GroupVersionKind::try_from(tm)?
+			} else {
+				bail!("cannot apply object without valid TypeMeta {:?}", obj);
+			};
+
+			let name = obj.name_any();
+			if let Some((ar, caps)) = discovery.resolve_gvk(&gvk) {
+				let api = dynamic_api(ar, caps, client.clone());
+				let _r = api.delete(&name, &Default::default()).await?;
+			}
+		}
+
+		Ok(())
+	}
+}
+
+impl From<Kube> for Vec<Manifest> {
+	fn from(val: Kube) -> Self {
+		val.manifests
+	}
+}
+
+fn dynamic_api(ar: ApiResource, caps: ApiCapabilities, client: Client) -> Api<DynamicObject> {
+	if caps.scope == Scope::Cluster {
+		Api::all_with(client, &ar)
+	} else {
+		Api::default_namespaced_with(client, &ar)
+	}
+}
 
 #[derive(Default)]
-pub struct Filter {
-	pub only: Vec<PathBuf>,
-	pub except: Vec<PathBuf>,
+pub struct Builder {
+	value: Option<Value>,
+	only: Vec<PathBuf>,
+	except: Vec<PathBuf>,
 }
 
-impl Filter {
-	fn pass(&self, path: &Path) -> bool {
-		let allow = self.only.iter().any(|allow| path.starts_with(allow));
+impl Builder {
+	pub fn value(mut self, value: Value) -> Self {
+		match self.value {
+			Some(_) => self,
+			None => {
+				self.value = Some(value);
 
-		let disallow = self
-			.except
-			.iter()
-			.any(|disallow| path.starts_with(disallow));
-
-		(allow || self.only.is_empty()) && !disallow
-	}
-}
-
-const KIND_ORDER: [&str; 35] = [
-	"Namespace",
-	"NetworkPolicy",
-	"ResourceQuota",
-	"LimitRange",
-	"PodSecurityPolicy",
-	"PodDisruptionBudget",
-	"ServiceAccount",
-	"Secret",
-	"SecretList",
-	"ConfigMap",
-	"StorageClass",
-	"PersistentVolume",
-	"PersistentVolumeClaim",
-	"CustomResourceDefinition",
-	"ClusterRole",
-	"ClusterRoleList",
-	"ClusterRoleBinding",
-	"ClusterRoleBindingList",
-	"Role",
-	"RoleList",
-	"RoleBinding",
-	"RoleBindingList",
-	"Service",
-	"DaemonSet",
-	"Pod",
-	"ReplicationController",
-	"ReplicaSet",
-	"Deployment",
-	"HorizontalPodAutoscaler",
-	"StatefulSet",
-	"Job",
-	"CronJob",
-	"IngressClass",
-	"Ingress",
-	"APIService",
-];
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Kind(String);
-
-impl Ord for Kind {
-	fn cmp(&self, other: &Self) -> Ordering {
-		let index_a = KIND_ORDER
-			.iter()
-			.position(|&k| k == self.0)
-			.unwrap_or_else(|| KIND_ORDER.len());
-		let index_b = KIND_ORDER
-			.iter()
-			.position(|&k| k == other.0)
-			.unwrap_or_else(|| KIND_ORDER.len());
-
-		index_a.cmp(&index_b)
-	}
-}
-
-impl PartialOrd for Kind {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-impl TryFrom<&Value> for Kind {
-	type Error = error::Object;
-
-	fn try_from(value: &Value) -> Result<Self, Self::Error> {
-		let kind = value
-			.get("kind")
-			.and_then(|v| v.as_str())
-			.map(|k| k.to_string())
-			.ok_or(error::Object::NoKind)?;
-
-		Ok(Kind(kind))
-	}
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Track {
-	pub field: String,
-	pub depth: usize,
-	pub order: usize,
-	pub kind: Option<Kind>,
-}
-
-impl ToString for Track {
-	fn to_string(&self) -> String {
-		let kind = self
-			.kind
-			.clone()
-			.map(|k| k.0)
-			.unwrap_or_else(|| String::from("Kind"));
-
-		format!("{}({}:{}:{})", kind, self.field, self.depth, self.order)
-	}
-}
-
-impl TryFrom<&str> for Track {
-	type Error = error::Tracking;
-
-	fn try_from(source: &str) -> Result<Self, Self::Error> {
-		let parts: Vec<String> = source.split(':').map(String::from).collect();
-
-		if let [field, depth, order] = parts.as_slice() {
-			let field = field.to_string();
-			if !is_valid_path(&field) {
-				return Err(error::Tracking::InvalidPart("field".to_string()));
+				self
 			}
-
-			let depth = depth
-				.parse()
-				.map_err(|_| error::Tracking::InvalidPart("depth".to_string()))?;
-			let order = order
-				.parse()
-				.map_err(|_| error::Tracking::InvalidPart("order".to_string()))?;
-
-			Ok(Track {
-				field,
-				depth,
-				order,
-				kind: None,
-			})
-		} else {
-			Err(error::Tracking::Format)
 		}
 	}
-}
 
-impl Ord for Track {
-	fn cmp(&self, other: &Self) -> Ordering {
-		let first_or_equal = |orders: &[Ordering]| -> Ordering {
-			*orders
-				.iter()
-				.find(|&&o| o != Ordering::Equal)
-				.unwrap_or(&Ordering::Equal)
-		};
-
-		let field = self.field.cmp(&other.field);
-		let depth = self.depth.cmp(&other.depth);
-		let order = self.order.cmp(&other.order);
-		let kind = match (&self.kind, &other.kind) {
-			(Some(a), Some(b)) => a.cmp(b),
-			(_, _) => Ordering::Equal,
-		};
-
-		if depth == Ordering::Equal {
-			first_or_equal(&[order, kind, field])
-		} else {
-			first_or_equal(&[order, field])
-		}
-	}
-}
-
-impl PartialOrd for Track {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-#[derive(Debug, Default)]
-struct Order(Vec<Track>);
-
-impl TryFrom<&Value> for Order {
-	type Error = error::Object;
-
-	fn try_from(value: &Value) -> Result<Self, Self::Error> {
-		let annotation = value
-			.get("metadata")
-			.and_then(|m| m.get("annotations"))
-			.and_then(|a| a.get("kct.io/order"))
-			.and_then(|o| o.as_str())
-			.unwrap_or_default();
-
-		let tracking = annotation
-			.split('/')
-			.into_iter()
-			.filter(|s| !s.is_empty())
-			.map(Track::try_from)
-			.collect::<Result<Vec<Track>, _>>()?;
-
-		Ok(Order(tracking))
-	}
-}
-
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-struct Tracking(Vec<Track>);
-
-impl Tracking {
-	fn depth(&self) -> usize {
-		let vec = &self.0;
-		let index = vec.len().saturating_sub(1);
-
-		vec.get(index).map(|t| t.depth).unwrap_or(0)
-	}
-
-	fn track(&self, track: Track) -> Self {
-		let mut new = self.0.clone();
-		new.push(track);
-
-		Tracking(new)
-	}
-
-	fn ordered(self, order: Order) -> Self {
-		let mut ordered: Vec<Track> = vec![];
-		let length = self.0.len();
-
-		let mut paths = self.0.into_iter().peekable();
-		let mut orders = order.0.into_iter().rev().peekable();
-
-		let ordered = loop {
-			match (paths.peek(), orders.peek()) {
-				(None, _) => {
-					break ordered;
-				}
-				(Some(p), None) => {
-					ordered.push(p.clone());
-					paths.next();
-				}
-				(Some(p), Some(o)) => {
-					let same_field = o.field == p.field;
-					let same_depth = (length - o.depth) == p.depth;
-
-					let track = if same_field && same_depth {
-						let track = Track {
-							field: p.field.clone(),
-							depth: p.depth,
-							order: o.order,
-							kind: p.kind.clone(),
-						};
-
-						orders.next();
-
-						track
-					} else {
-						p.clone()
-					};
-
-					ordered.push(track);
-					paths.next();
-				}
-			};
-		};
-
-		Self(ordered)
-	}
-
-	fn kinded(mut self, kind: Kind) -> Tracking {
-		let len = self.0.len().saturating_sub(1);
-		if let Some(t) = self.0.get_mut(len) {
-			t.kind = Some(kind);
-		}
+	pub fn only(mut self, only: Vec<PathBuf>) -> Self {
+		self.only = only;
 
 		self
 	}
-}
 
-impl From<&Tracking> for PathBuf {
-	fn from(source: &Tracking) -> Self {
-		let mut root = PathBuf::from("/");
+	pub fn except(mut self, except: Vec<PathBuf>) -> Self {
+		self.except = except;
 
-		for t in source.0.iter() {
-			root.push(t.field.clone());
-		}
-
-		root
+		self
 	}
-}
 
-pub fn find(json: &Value, filter: &Filter) -> Result<Vec<(PathBuf, Value)>, Error> {
-	let mut manifests: Vec<(Tracking, Value)> = vec![];
-	let mut walker: Vec<Box<dyn Iterator<Item = (Tracking, &Value)>>> =
-		vec![Box::new(vec![(Tracking::default(), json)].into_iter())];
-
-	while let Some(curr) = walker.last_mut() {
-		let (tracking, json) = match curr.next() {
-			Some(val) => val,
-			None => {
-				walker.pop();
-				continue;
-			}
+	pub fn build(self) -> Result<Kube, Error> {
+		let value = self.value.ok_or(Error::MissingValue)?;
+		let filter = Filter {
+			only: self.only,
+			except: self.except,
 		};
 
-		if is_manifest(json) {
-			let order = Order::try_from(json)?;
-			let tracking = tracking.ordered(order);
-			let kind = Kind::try_from(json)?;
-			let tracked = tracking.kinded(kind);
+		let manifests = ingest::process(&value, &filter)?;
 
-			let path: PathBuf = (&tracked).into();
-
-			if filter.pass(&path) {
-				manifests.push((tracked, json.to_owned()));
-			}
-		} else {
-			match json {
-				Value::Object(map) => {
-					let mut members: Vec<(Tracking, &Value)> = Vec::with_capacity(map.len());
-
-					for (k, v) in map {
-						if !is_valid_path(k) {
-							Err(error::Output::Path(k.to_string()))?;
-						} else {
-							let track = Track {
-								field: k.clone(),
-								depth: tracking.depth() + 1,
-								order: map.len(),
-								kind: None,
-							};
-
-							members.push((tracking.track(track), v))
-						}
-					}
-
-					walker.push(Box::new(members.into_iter()));
-				}
-				_ => Err(error::Output::NotObject)?,
-			}
-		}
+		Ok(Kube { manifests })
 	}
-
-	manifests.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-	Ok(manifests
-		.into_iter()
-		.map(|(t, v)| ((&t).into(), v))
-		.collect())
-}
-
-const K8S_MANIFEST_SCHEMA: &str = r#"{
-	"$schema": "http://json-schema.org/schema#",
-	"type": "object",
-	"additionalProperties": true,
-	"required": ["kind", "apiVersion"],
-	"properties": {
-		"kind": {
-			"type": "string"
-		},
-		"apiVersion": {
-			"type": "string"
-		}
-	}
-}"#;
-
-fn is_manifest(obj: &Value) -> bool {
-	let schema = serde_json::from_str(K8S_MANIFEST_SCHEMA).unwrap();
-
-	let mut scope = Scope::new();
-	let validator = scope.compile_and_return(schema, false).unwrap();
-
-	validator.validate(obj).is_strictly_valid()
-}
-
-fn is_valid_path(path: &str) -> bool {
-	lazy_static! {
-		static ref PATTERN: Regex =
-			Regex::new(r"(?i)^[a-z0-9]$|^[a-z0-9][a-z0-9-]*[a-z0-9]$").unwrap();
-	}
-
-	PATTERN.is_match(path)
 }

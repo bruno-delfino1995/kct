@@ -11,13 +11,14 @@ repository.workspace = true
 
 [dependencies]
 clap = { version = "4.1.4", features = ["derive"] }
+tokio = { version = "1.25.0", features = ["full"] }
 
 anyhow.workspace = true
-serde_json.workspace = true
-serde_yaml.workspace = true
-thiserror.workspace = true
-
+kct_cli.workspace = true
+kct_compiler.workspace = true
 kct_helper.workspace = true
 kct_kube.workspace = true
 kct_package.workspace = true
-kct_compiler.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+thiserror.workspace = true

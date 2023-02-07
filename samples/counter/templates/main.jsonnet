@@ -7,5 +7,7 @@ local _ = import 'kct.libsonnet';
 		name: _.name,
 	},
 	type: 'Opaque',
-	data: _.input,
+	data: {
+		counter: std.toString(_.input.counter)
+	}
 }
