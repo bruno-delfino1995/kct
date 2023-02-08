@@ -4,6 +4,7 @@
 [![license](https://img.shields.io/github/license/bruno-delfino1995/kct)](https://github.com/bruno-delfino1995/kct/blob/main/LICENSE)
 [![version](https://img.shields.io/github/v/release/bruno-delfino1995/kct?label=version)](https://github.com/bruno-delfino1995/kct/releases/latest)
 [![coverage](https://codecov.io/gh/bruno-delfino1995/kct/branch/main/graph/badge.svg?token=VAXMGX6OKU)](https://codecov.io/gh/bruno-delfino1995/kct)
+[![dependency status](https://deps.rs/repo/github/bruno-delfino1995/kct/status.svg)](https://deps.rs/repo/github/bruno-delfino1995/kct)
 
 KCT is a tool for taming the Kubernetes configuration beast by using Jsonnet while borrowing approaches and concepts from early contestants such as Tanka and Helm.
 
