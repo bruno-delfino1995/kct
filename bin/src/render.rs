@@ -19,7 +19,7 @@ pub struct Args {
 
 pub fn run(args: Args) -> Result<String> {
 	let kube = compile::run(args.compile)?;
-	let manifests: Vec<Manifest> = kube.into();
+	let manifests: Vec<Manifest> = kube.try_into()?;
 	let documents: Vec<(PathBuf, String)> = manifests
 		.into_iter()
 		.map(|manifest| manifest.into())

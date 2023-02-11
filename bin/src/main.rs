@@ -1,11 +1,12 @@
 mod apply;
 mod delete;
 mod error;
+mod instrument;
 mod operation;
 mod render;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
@@ -18,7 +19,9 @@ use clap::{Parser, Subcommand};
 	help_expected = true,
 	arg_required_else_help = true
 )]
-pub struct Cli {
+pub struct App {
+	#[arg(help = "increase logging levels", long, short, global = true, action = ArgAction::Count)]
+	verbose: u8,
 	#[command(subcommand)]
 	command: Command,
 }
@@ -41,9 +44,11 @@ pub enum Command {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	let cli = Cli::parse();
+	let app = App::parse();
 
-	let result = match cli.command {
+	let _guard = instrument::init(app.verbose);
+
+	let result = match app.command {
 		Command::Render(args) => render::run(args)?,
 		Command::Apply(args) => apply::run(args).await?,
 		Command::Delete(args) => delete::run(args).await?,

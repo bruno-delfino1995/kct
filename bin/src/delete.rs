@@ -11,7 +11,7 @@ pub struct Args {
 
 pub async fn run(args: Args) -> Result<String> {
 	let kube = compile::run(args.compile)?;
-	kube.delete().await?;
+	kube.uninstall().await?;
 
 	Ok("success".to_string())
 }

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `compile` is now called `render` because compile itself is inherent to all commands that interact with a package
+- order for CRDs is ignored for performance reasons, otherwise we would need to run discover everytime a CRD is applied
 
 ## [0.6.0] - 2023-02-05
 

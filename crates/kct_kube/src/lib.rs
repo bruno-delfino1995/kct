@@ -1,19 +1,16 @@
-mod ingest;
+mod client;
+mod ingestor;
 
 pub mod error;
 
-use crate::ingest::Filter;
+use self::client::Client;
+use self::ingestor::Ingestor;
 
 pub use crate::error::Root as Error;
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
-
-use kube::api::{Api, DynamicObject, Patch, PatchParams, ResourceExt};
-use kube::core::GroupVersionKind;
-use kube::discovery::{ApiCapabilities, ApiResource, Discovery, Scope};
-use kube::Client;
+use anyhow::Result;
 use serde_json::Value;
 
 #[derive(Debug)]
@@ -38,7 +35,8 @@ impl From<Manifest> for (PathBuf, String) {
 }
 
 pub struct Kube {
-	manifests: Vec<Manifest>,
+	value: Value,
+	ingestor: Ingestor,
 }
 
 impl Kube {
@@ -46,68 +44,38 @@ impl Kube {
 		Default::default()
 	}
 
-	pub async fn apply(self) -> Result<()> {
-		let manifests = self.manifests;
-
-		let client = Client::try_default().await?;
-		let discovery = Discovery::new(client.clone()).run().await?;
-		let ssapply = PatchParams::apply("kubectl-light").force();
-		for Manifest(_, doc) in manifests {
-			let obj: DynamicObject = serde_json::from_value(doc)?;
-			let gvk = if let Some(tm) = &obj.types {
-				GroupVersionKind::try_from(tm)?
-			} else {
-				bail!("cannot apply object without valid TypeMeta {:?}", obj);
-			};
-
-			// TODO: After applying a CRD, we need to find a way to wait until k8s enables its API
-			let name = obj.name_any();
-			if let Some((ar, caps)) = discovery.resolve_gvk(&gvk) {
-				let api = dynamic_api(ar, caps, client.clone());
-				let data: serde_json::Value = serde_json::to_value(&obj)?;
-				let _r = api.patch(&name, &ssapply, &Patch::Apply(data)).await?;
-			}
-		}
-
-		Ok(())
+	pub fn render(&self) -> Result<Vec<Manifest>, Error> {
+		self.ingestor.ingest(&self.value)
 	}
 
-	pub async fn delete(self) -> Result<()> {
-		let client = Client::try_default().await?;
-		let discovery = Discovery::new(client.clone()).run().await?;
+	pub async fn install(self) -> Result<()> {
+		let mut client = Client::try_new().await?;
+		let manifests = self
+			.render()?
+			.into_iter()
+			.map(|Manifest(_, val)| val)
+			.collect();
 
-		let mut manifests = self.manifests;
-		manifests.reverse();
-		for Manifest(_, doc) in manifests {
-			let obj: DynamicObject = serde_json::from_value(doc)?;
-			let gvk = if let Some(tm) = &obj.types {
-				GroupVersionKind::try_from(tm)?
-			} else {
-				bail!("cannot apply object without valid TypeMeta {:?}", obj);
-			};
+		client.apply(manifests).await
+	}
 
-			let name = obj.name_any();
-			if let Some((ar, caps)) = discovery.resolve_gvk(&gvk) {
-				let api = dynamic_api(ar, caps, client.clone());
-				let _r = api.delete(&name, &Default::default()).await?;
-			}
-		}
+	pub async fn uninstall(self) -> Result<()> {
+		let mut client = Client::try_new().await?;
+		let manifests = self
+			.render()?
+			.into_iter()
+			.map(|Manifest(_, val)| val)
+			.collect();
 
-		Ok(())
+		client.delete(manifests).await
 	}
 }
 
-impl From<Kube> for Vec<Manifest> {
-	fn from(val: Kube) -> Self {
-		val.manifests
-	}
-}
+impl TryFrom<Kube> for Vec<Manifest> {
+	type Error = Error;
 
-fn dynamic_api(ar: ApiResource, caps: ApiCapabilities, client: Client) -> Api<DynamicObject> {
-	if caps.scope == Scope::Cluster {
-		Api::all_with(client, &ar)
-	} else {
-		Api::default_namespaced_with(client, &ar)
+	fn try_from(source: Kube) -> std::result::Result<Self, Self::Error> {
+		source.render()
 	}
 }
 
@@ -144,13 +112,8 @@ impl Builder {
 
 	pub fn build(self) -> Result<Kube, Error> {
 		let value = self.value.ok_or(Error::MissingValue)?;
-		let filter = Filter {
-			only: self.only,
-			except: self.except,
-		};
+		let ingestor = Ingestor::new(self.only, self.except);
 
-		let manifests = ingest::process(&value, &filter)?;
-
-		Ok(Kube { manifests })
+		Ok(Kube { ingestor, value })
 	}
 }

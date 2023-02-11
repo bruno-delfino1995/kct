@@ -19,7 +19,7 @@ type Return = Result<Vec<Manifest>, Error>;
 fn find_from(val: Value) -> Return {
 	let kube = Kube::builder().value(val).build()?;
 
-	Ok(kube.into())
+	kube.try_into()
 }
 
 fn assert_manifests(ok: Return, times: usize) {
@@ -415,7 +415,7 @@ mod filter {
 			.except(except)
 			.build()?;
 
-		Ok(kube.into())
+		kube.try_into()
 	}
 
 	fn find_within_complex(only: Vec<PathBuf>, except: Vec<PathBuf>) -> Return {
@@ -427,7 +427,7 @@ mod filter {
 			.except(except)
 			.build()?;
 
-		Ok(kube.into())
+		kube.try_into()
 	}
 
 	#[test]
