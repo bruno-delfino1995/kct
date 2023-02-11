@@ -1,9 +1,9 @@
-mod apply;
-mod delete;
 mod error;
+mod install;
 mod instrument;
 mod operation;
 mod render;
+mod uninstall;
 
 use anyhow::Result;
 use clap::{ArgAction, Parser, Subcommand};
@@ -28,18 +28,24 @@ pub struct App {
 
 #[derive(Subcommand)]
 pub enum Command {
-	#[command(name = "compile", about = "Compiles package into valid manifests")]
+	#[command(
+		name = "render",
+		alias = "r",
+		about = "Compiles and renders your package"
+	)]
 	Render(render::Args),
 	#[command(
-		name = "apply",
-		about = "Applies your objects to the currently configured cluster"
+		name = "install",
+		alias = "i",
+		about = "Puts your objects in the current cluster"
 	)]
-	Apply(apply::Args),
+	Install(install::Args),
 	#[command(
-		name = "delete",
-		about = "Deletes your objects from the currently configured cluster"
+		name = "uninstall",
+		alias = "u",
+		about = "Removes your objects from the current cluster"
 	)]
-	Delete(delete::Args),
+	Uninstall(uninstall::Args),
 }
 
 #[tokio::main]
@@ -48,13 +54,11 @@ async fn main() -> Result<()> {
 
 	let _guard = instrument::init(app.verbose);
 
-	let result = match app.command {
+	match app.command {
 		Command::Render(args) => render::run(args)?,
-		Command::Apply(args) => apply::run(args).await?,
-		Command::Delete(args) => delete::run(args).await?,
+		Command::Install(args) => install::run(args).await?,
+		Command::Uninstall(args) => uninstall::run(args).await?,
 	};
-
-	println!("{result}");
 
 	Ok(())
 }

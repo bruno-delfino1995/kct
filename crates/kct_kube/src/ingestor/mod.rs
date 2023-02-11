@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use anyhow::Result;
 
 use serde_json::Value;
-use valico::json_schema::Scope;
 
 pub struct Ingestor {
 	filter: Filter,
@@ -40,7 +39,7 @@ impl Ingestor {
 				}
 			};
 
-			if is_manifest(json) {
+			if Manifest::conforms(json) {
 				let order = Order::try_from(json)?;
 				let tracking = tracking.ordered(order);
 				let kind = Kind::try_from(json)?;
@@ -85,28 +84,4 @@ impl Ingestor {
 			.map(|(t, v)| Manifest((&t).into(), v))
 			.collect())
 	}
-}
-
-const K8S_MANIFEST_SCHEMA: &str = r#"{
-	"$schema": "http://json-schema.org/schema#",
-	"type": "object",
-	"additionalProperties": true,
-	"required": ["kind", "apiVersion"],
-	"properties": {
-		"kind": {
-			"type": "string"
-		},
-		"apiVersion": {
-			"type": "string"
-		}
-	}
-}"#;
-
-fn is_manifest(obj: &Value) -> bool {
-	let schema = serde_json::from_str(K8S_MANIFEST_SCHEMA).unwrap();
-
-	let mut scope = Scope::new();
-	let validator = scope.compile_and_return(schema, false).unwrap();
-
-	validator.validate(obj).is_strictly_valid()
 }

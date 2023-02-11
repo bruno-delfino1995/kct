@@ -9,9 +9,9 @@ pub struct Args {
 	compile: compile::Params,
 }
 
-pub async fn run(args: Args) -> Result<String> {
+pub async fn run(args: Args) -> Result<()> {
 	let kube = compile::run(args.compile)?;
 	kube.install().await?;
 
-	Ok("success".to_string())
+	Ok(())
 }

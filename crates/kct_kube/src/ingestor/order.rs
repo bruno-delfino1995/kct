@@ -1,6 +1,6 @@
 use super::path;
 
-use crate::error::{self};
+use crate::error;
 
 use std::cmp::Ordering;
 use std::path::PathBuf;

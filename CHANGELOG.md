@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `apply` and `delete` commands to interact directly with the current cluster
+- `install` and `uninstall` commands to interact directly with the current cluster
+- one letter aliases to the main commands: **r**ender, **i**nstall, **u**ninstall
 
 ### Changed
 

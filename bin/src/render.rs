@@ -17,7 +17,7 @@ pub struct Args {
 	compile: compile::Params,
 }
 
-pub fn run(args: Args) -> Result<String> {
+pub fn run(args: Args) -> Result<()> {
 	let kube = compile::run(args.compile)?;
 	let manifests: Vec<Manifest> = kube.try_into()?;
 	let documents: Vec<(PathBuf, String)> = manifests
@@ -27,17 +27,24 @@ pub fn run(args: Args) -> Result<String> {
 
 	let output = ensure_output_exists(&args.output)?;
 	match output {
-		out @ Location::Standard => {
-			let contents = out.write(documents)?;
+		out @ Location::Standard => out.write(documents)?,
 
-			Ok(contents)
-		}
 		out @ Location::Path(_) => {
-			let path = out.write(documents)?;
+			out.write(documents)?;
+			let path = args
+				.output
+				.and_then(|o| {
+					let l: Location = o.into();
 
-			Ok(format!("Manifests written at \"{path}\""))
+					l.path().map(|p| p.display().to_string())
+				})
+				.unwrap();
+
+			println!("Manifests written at \"{path}\"");
 		}
 	}
+
+	Ok(())
 }
 
 fn ensure_output_exists(output: &Option<Output>) -> Result<Location, Error> {

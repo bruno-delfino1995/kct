@@ -49,6 +49,13 @@ impl FromStr for Location {
 }
 
 impl Location {
+	pub fn path(&self) -> Option<&Path> {
+		match self {
+			Location::Standard => None,
+			Location::Path(path) => Some(path),
+		}
+	}
+
 	pub fn read(self) -> Result<String, Error> {
 		match self {
 			Self::Standard => from_stdin().map_err(|_| Error::UnableToRead),
@@ -56,15 +63,17 @@ impl Location {
 		}
 	}
 
-	pub fn write(self, documents: Vec<(PathBuf, String)>) -> Result<String, Error> {
+	pub fn write(self, documents: Vec<(PathBuf, String)>) -> Result<(), Error> {
 		match self {
 			Self::Standard => {
-				let contents = documents
+				let contents: String = documents
 					.into_iter()
 					.map(|(_path, object)| object)
 					.collect();
 
-				Ok(contents)
+				println!("{contents}");
+
+				Ok(())
 			}
 			Self::Path(root) => {
 				for (path, contents) in documents {
@@ -78,7 +87,7 @@ impl Location {
 					write_contents(&target, &contents)?;
 				}
 
-				Ok(format!("{}", root.display()))
+				Ok(())
 			}
 		}
 	}

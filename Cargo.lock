@@ -1079,7 +1079,7 @@ dependencies = [
  "k8s-openapi",
  "kct_testing",
  "kube",
- "lazy_static",
+ "once_cell",
  "regex",
  "serde_json",
  "serde_yaml",

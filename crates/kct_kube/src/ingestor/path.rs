@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 #[derive(Default)]
@@ -22,11 +22,9 @@ impl Filter {
 	}
 }
 
-pub fn is_valid(path: &str) -> bool {
-	lazy_static! {
-		static ref PATTERN: Regex =
-			Regex::new(r"(?i)^[a-z0-9]$|^[a-z0-9][a-z0-9-]*[a-z0-9]$").unwrap();
-	}
+static RE: Lazy<Regex> =
+	Lazy::new(|| Regex::new(r"(?i)^[a-z0-9]$|^[a-z0-9][a-z0-9-]*[a-z0-9]$").unwrap());
 
-	PATTERN.is_match(path)
+pub fn is_valid(path: &str) -> bool {
+	RE.is_match(path)
 }

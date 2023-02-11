@@ -11,7 +11,9 @@ pub use crate::error::Root as Error;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use once_cell::sync::Lazy;
 use serde_json::Value;
+use valico::json_schema::Scope;
 
 #[derive(Debug)]
 pub struct Manifest(PathBuf, Value);
@@ -22,6 +24,35 @@ impl From<Manifest> for (PathBuf, Value) {
 		let manifest = val.1;
 
 		(path, manifest)
+	}
+}
+
+static SCHEMA: Lazy<Value> = Lazy::new(|| {
+	serde_json::from_str(
+		r#"{
+		"$schema": "http://json-schema.org/schema#",
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["kind", "apiVersion"],
+		"properties": {
+			"kind": {
+				"type": "string"
+			},
+			"apiVersion": {
+				"type": "string"
+			}
+		}
+	}"#,
+	)
+	.unwrap()
+});
+
+impl Manifest {
+	fn conforms(obj: &Value) -> bool {
+		let mut scope = Scope::new();
+		let validator = scope.compile_and_return(SCHEMA.clone(), false).unwrap();
+
+		validator.validate(obj).is_strictly_valid()
 	}
 }
 
@@ -50,22 +81,14 @@ impl Kube {
 
 	pub async fn install(self) -> Result<()> {
 		let mut client = Client::try_new().await?;
-		let manifests = self
-			.render()?
-			.into_iter()
-			.map(|Manifest(_, val)| val)
-			.collect();
+		let manifests = self.render()?;
 
 		client.apply(manifests).await
 	}
 
 	pub async fn uninstall(self) -> Result<()> {
 		let mut client = Client::try_new().await?;
-		let manifests = self
-			.render()?
-			.into_iter()
-			.map(|Manifest(_, val)| val)
-			.collect();
+		let manifests = self.render()?;
 
 		client.delete(manifests).await
 	}

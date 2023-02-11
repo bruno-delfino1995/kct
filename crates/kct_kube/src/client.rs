@@ -1,4 +1,9 @@
+use crate::Manifest;
+
 pub use crate::error::Root as Error;
+
+use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::Result;
 use either::Either;
@@ -9,7 +14,6 @@ use kube::core::GroupVersionKind;
 use kube::discovery::{Discovery, Scope};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::Client as K8;
-use serde_json::Value;
 
 pub struct Client {
 	client: K8,
@@ -24,12 +28,11 @@ impl Client {
 		Ok(Self { client, discovery })
 	}
 
-	pub async fn apply(&mut self, objects: Vec<Value>) -> Result<()> {
-		let (dynamics, crds) = separate_crds(objects)?;
+	pub async fn apply(&mut self, manifests: Vec<Manifest>) -> Result<()> {
+		let (dynamics, crds) = separate_crds(manifests)?;
 
 		let ssapply = PatchParams::apply("kct-crds").force();
 		let crds = crds.into_iter().map(|crd| self.apply_crd(crd, &ssapply));
-
 		let _ = futures::future::try_join_all(crds).await?;
 
 		self.refresh().await?;
@@ -42,7 +45,7 @@ impl Client {
 		Ok(())
 	}
 
-	async fn apply_crd(&self, crd: CRD, params: &PatchParams) -> Result<()> {
+	async fn apply_crd(&self, (path, crd): (PathBuf, CRD), params: &PatchParams) -> Result<()> {
 		let name = crd.name_any();
 		let patch = Patch::Apply(&crd);
 		let cond = conditions::is_crd_established();
@@ -56,49 +59,62 @@ impl Client {
 		let wait = {
 			let establish = await_condition(api, &name, cond).map_err(|err| anyhow::anyhow!(err));
 
-			tokio::time::timeout(std::time::Duration::from_secs(10), establish)
+			tokio::time::timeout(Duration::from_secs(10), establish)
 				.map_err(|err| anyhow::anyhow!(err))
 		};
 
-		futures::try_join!(apply, wait).map(|_| ())
+		let _ = futures::future::try_join(apply, wait).await?;
+
+		println!("{} created", path.display());
+
+		Ok(())
 	}
 
-	async fn apply_dynamic(&self, obj: Dynamic, params: &PatchParams) -> Result<()> {
+	async fn apply_dynamic(
+		&self,
+		(path, obj): (PathBuf, Dynamic),
+		params: &PatchParams,
+	) -> Result<()> {
 		let name = obj.name_any();
 		let api: Api<Dynamic> = self.dynamic_api(&obj)?;
 		let data = serde_json::to_value(&obj)?;
 		let _ = api.patch(&name, params, &Patch::Apply(data)).await?;
 
+		println!("{} created", path.display());
+
 		Ok(())
 	}
 
-	pub async fn delete(&mut self, mut objects: Vec<Value>) -> Result<()> {
-		objects.reverse();
+	pub async fn delete(&mut self, mut manifests: Vec<Manifest>) -> Result<()> {
+		manifests.reverse();
 
-		let (dynamics, crds) = separate_crds(objects)?;
+		let (dynamics, crds) = separate_crds(manifests)?;
 
 		let dynamics = dynamics.into_iter().map(|obj| self.delete_dynamic(obj));
 		let crds = crds.into_iter().map(|obj| self.delete_crd(obj));
 
 		let _ = futures::future::try_join_all(dynamics).await?;
 		let _ = futures::future::try_join_all(crds).await?;
-		self.refresh().await?;
 
 		Ok(())
 	}
 
-	async fn delete_crd(&self, obj: CRD) -> Result<()> {
+	async fn delete_crd(&self, (path, obj): (PathBuf, CRD)) -> Result<()> {
 		let name = obj.name_any();
 		let api: Api<CRD> = Api::all(self.client.clone());
 		let _ = api.delete(&name, &Default::default()).await?;
 
+		println!("{} removed", path.display());
+
 		Ok(())
 	}
 
-	async fn delete_dynamic(&self, obj: Dynamic) -> Result<()> {
+	async fn delete_dynamic(&self, (path, obj): (PathBuf, Dynamic)) -> Result<()> {
 		let name = obj.name_any();
 		let api: Api<Dynamic> = self.dynamic_api(&obj)?;
 		let _ = api.delete(&name, &Default::default()).await?;
+
+		println!("{} removed", path.display());
 
 		Ok(())
 	}
@@ -137,16 +153,18 @@ impl Client {
 	}
 }
 
-fn separate_crds(manifests: Vec<Value>) -> Result<(Vec<Dynamic>, Vec<CRD>)> {
-	let mut crds: Vec<CRD> = vec![];
-	let mut dynamics: Vec<Dynamic> = vec![];
+fn separate_crds(
+	manifests: Vec<Manifest>,
+) -> Result<(Vec<(PathBuf, Dynamic)>, Vec<(PathBuf, CRD)>)> {
+	let mut crds = vec![];
+	let mut dynamics = vec![];
 
-	for doc in manifests {
+	for Manifest(path, doc) in manifests {
 		let obj: Dynamic = serde_json::from_value(doc)?;
 
 		match try_parse(obj) {
-			Either::Right(crd) => crds.push(crd),
-			Either::Left(obj) => dynamics.push(obj),
+			Either::Right(crd) => crds.push((path, crd)),
+			Either::Left(obj) => dynamics.push((path, obj)),
 		}
 	}
 
