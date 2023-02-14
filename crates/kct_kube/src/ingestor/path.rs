@@ -3,6 +3,10 @@ use std::path::{Path, PathBuf};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+/// Blocklist and Allowlist coded into a single filter that allows everything by default. If
+/// there's no specific disallow we'll let everything pass, but if there's a specific allow we only
+/// permit those allowed. However, if something is allowed and disallowed, we won't let it pass
+/// because the blocklist has a higher priority.
 #[derive(Default)]
 pub struct Filter {
 	pub only: Vec<PathBuf>,

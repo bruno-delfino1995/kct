@@ -8,22 +8,40 @@ use self::ingestor::Ingestor;
 
 pub use crate::error::Root as Error;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use valico::json_schema::Scope;
 
+pub type Manifest = Tracked<Value>;
+
 #[derive(Debug)]
-pub struct Manifest(PathBuf, Value);
+pub struct Tracked<T>(PathBuf, T);
 
-impl From<Manifest> for (PathBuf, Value) {
-	fn from(val: Manifest) -> Self {
+impl<T> From<Tracked<T>> for (PathBuf, T) {
+	fn from(val: Tracked<T>) -> Self {
 		let path = val.0;
-		let manifest = val.1;
+		let object = val.1;
 
-		(path, manifest)
+		(path, object)
+	}
+}
+
+impl<T> From<(PathBuf, T)> for Tracked<T> {
+	fn from((path, value): (PathBuf, T)) -> Self {
+		Tracked(path, value)
+	}
+}
+
+impl<T> Tracked<T> {
+	pub fn path(&self) -> &Path {
+		&self.0
+	}
+
+	pub fn value(&self) -> &T {
+		&self.1
 	}
 }
 

@@ -9,8 +9,8 @@ use serde_json::{json, Value};
 
 fn manifest() -> Value {
 	json!({
-			"kind": "Deployment",
-			"apiVersion": "apps/v1"
+		"kind": "Deployment",
+		"apiVersion": "apps/v1"
 	})
 }
 
@@ -186,7 +186,7 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['a'], {
-				a: sdk.inOrder(['b'], {b: sdk.inOrder(['c'], {c: sdk.inOrder(['d'], {d: sdk.inOrder(['e'], {e: sdk.inOrder(['g', 'f'], {f: manifest(), g: manifest()})})})})}),
+					a: sdk.inOrder(['b'], {b: sdk.inOrder(['c'], {c: sdk.inOrder(['d'], {d: sdk.inOrder(['e'], {e: sdk.inOrder(['g', 'f'], {f: manifest(), g: manifest()})})})})}),
 				})"#
 			),
 			vec!["/a/b/c/d/e/g", "/a/b/c/d/e/f"]
@@ -195,8 +195,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['b', 'a'], {
-				a: manifest(),
-				b: manifest()
+					a: manifest(),
+					b: manifest(),
 				})"#,
 			),
 			vec!["/b", "/a"],
@@ -205,9 +205,9 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['b'], {
-				a: manifest(),
-				b: manifest(),
-				c: manifest()
+					a: manifest(),
+					b: manifest(),
+					c: manifest(),
 				})"#,
 			),
 			vec!["/b", "/a", "/c"],
@@ -216,8 +216,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['e', 'a'], {
-				a: sdk.inOrder(['b','d','c'], {b: manifest(), c: manifest(), d: manifest()}),
-				e: sdk.inOrder(['h', 'g', 'f'], {f: manifest(), g: manifest(), h: manifest()})
+					a: sdk.inOrder(['b','d','c'], {b: manifest(), c: manifest(), d: manifest()}),
+					e: sdk.inOrder(['h', 'g', 'f'], {f: manifest(), g: manifest(), h: manifest()}),
 				})"#,
 			),
 			vec!["/e/h", "/e/g", "/e/f", "/a/b", "/a/d", "/a/c"],
@@ -226,12 +226,12 @@ mod paths {
 		cases.push((
 			render(
 				r#"{
-				a: sdk.inOrder(['c', 'b'], {b: manifest(), c: manifest()}),
-				d: sdk.inOrder(['e', 'f', 'i'], {
-					e: manifest(),
-					f: sdk.inOrder(['h', 'g'], {g: manifest(), h: manifest()}),
-					i: manifest()
-				})
+					a: sdk.inOrder(['c', 'b'], {b: manifest(), c: manifest()}),
+					d: sdk.inOrder(['e', 'f', 'i'], {
+						e: manifest(),
+						f: sdk.inOrder(['h', 'g'], {g: manifest(), h: manifest()}),
+						i: manifest(),
+					}),
 				}"#,
 			),
 			vec!["/a/c", "/a/b", "/d/e", "/d/f/h", "/d/f/g", "/d/i"],
@@ -240,8 +240,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['b', 'a'], {
-				a: sdk.inOrder(['b'], {b: {c: {b: sdk.inOrder(['d'], {d: {a: manifest()}, c: manifest()})}}, a: manifest()}),
-				b: { d: {d: sdk.inOrder(['d'], {c: sdk.inOrder(['c'], {c: {a: manifest()}, a: manifest()}), d: manifest()})}}
+					a: sdk.inOrder(['b'], {b: {c: {b: sdk.inOrder(['d'], {d: {a: manifest()}, c: manifest()})}}, a: manifest()}),
+					b: { d: {d: sdk.inOrder(['d'], {c: sdk.inOrder(['c'], {c: {a: manifest()}, a: manifest()}), d: manifest()})}}
 				})"#,
 			),
 			vec![
@@ -257,20 +257,20 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['y', 'x'], {
-				x: sdk.inOrder(['b', 'a'], {
-					a: manifest(),
-					b: sdk.inOrder(['k','c'], {
-						c: manifest(),
-						d: sdk.inOrder(['e', 'h', 'g'], {
-							e: {f: manifest()},
-							g: manifest(),
-							h: sdk.inOrder(['j', 'i'], {i: manifest(), j: manifest()})
-						}),
-						k: manifest(),
-						l: {m: manifest()}
-					})
-				}),
-				y: manifest()
+					x: sdk.inOrder(['b', 'a'], {
+						a: manifest(),
+						b: sdk.inOrder(['k','c'], {
+							c: manifest(),
+							d: sdk.inOrder(['e', 'h', 'g'], {
+								e: {f: manifest()},
+								g: manifest(),
+								h: sdk.inOrder(['j', 'i'], {i: manifest(), j: manifest()})
+							}),
+							k: manifest(),
+							l: {m: manifest()}
+						})
+					}),
+					y: manifest()
 				})"#,
 			),
 			vec![
@@ -346,10 +346,10 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['c'], {
-				a: manifest('Deployment'),
-				b: manifest('Pod'),
-				c: manifest('Job'),
-									d: manifest('Namespace')
+					a: manifest('Deployment'),
+					b: manifest('Pod'),
+					c: manifest('Job'),
+					d: manifest('Namespace'),
 				})"#,
 			),
 			vec!["/c", "/d", "/b", "/a"],
@@ -368,8 +368,8 @@ mod paths {
 		cases.push((
 			render(
 				r#"{
-			x: {a: manifest(), b: manifest('Namespace')},
-			y: {a: manifest('Secret'), b: manifest('Job')},
+					x: {a: manifest(), b: manifest('Namespace')},
+					y: {a: manifest('Secret'), b: manifest('Job')},
 				}"#,
 			),
 			vec!["/x/b", "/x/a", "/y/a", "/y/b"],
@@ -378,10 +378,10 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['y'], {
-			x: manifest('Unknown'),
-			y: {a: manifest('Secret'), b: manifest('Job')},
-			z: {a: manifest(), b: manifest('Namespace')},
-		})"#,
+					x: manifest('Unknown'),
+					y: {a: manifest('Secret'), b: manifest('Job')},
+					z: {a: manifest(), b: manifest('Namespace')},
+				})"#,
 			),
 			vec!["/y/a", "/y/b", "/x", "/z/b", "/z/a"],
 		));
@@ -389,11 +389,11 @@ mod paths {
 		cases.push((
 			render(
 				r#"sdk.inOrder(['d'], {
-			a: manifest('Service'),
-			c: {b: manifest('Pod'), c: manifest('Deployment')},
-			b: manifest('Job'),
-			d: manifest()
-		})"#,
+					a: manifest('Service'),
+					c: {b: manifest('Pod'), c: manifest('Deployment')},
+					b: manifest('Job'),
+					d: manifest(),
+				})"#,
 			),
 			vec!["/d", "/a", "/b", "/c/b", "/c/c"],
 		));

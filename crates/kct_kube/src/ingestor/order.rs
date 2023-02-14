@@ -47,11 +47,16 @@ const KIND_ORDER: [&str; 35] = [
 	"APIService",
 ];
 
+/// It's the `kind` property on your objects
+///
+/// The priority is the same used by Helm, which matches the "precedence" of each object, meaning
+/// that we'll apply secrets before deployments because the latter depends on the former but not
+/// the other way around.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Kind(String);
 
 impl Kind {
-	fn priority(&self) -> usize {
+	pub fn priority(&self) -> usize {
 		KIND_ORDER
 			.iter()
 			.position(|&k| k == self.0)
@@ -85,6 +90,16 @@ impl TryFrom<&Value> for Kind {
 	}
 }
 
+/// What's important to ordering two objects
+///
+/// We start by asking if they're at the same depth, if so, we should order them according to:
+///   - Is there an explicit order? If not, it should be the length of that level
+///   - What's the kind of the object? There's a priority between them
+///   - What's the name of the field? It helps us order everythin alphabetically
+///
+/// The kind is optional because we use tracking to follow the path that leads us to an object and
+/// there're plain objects between the root and the final object, which usually are used by the
+/// creator to organize their package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Track {
 	pub field: String,
@@ -167,6 +182,14 @@ impl PartialOrd for Track {
 	}
 }
 
+/// Order contained in the annotation introduced by `sdk.inOrder`
+///
+/// It's equivalent to tracking, but we separated it because of the hollow and backwards nature of
+/// the annotation. It doesn't have every level because a package creator can omit the order at a
+/// middle level, which would result into a "hollowed" annottation, e.g. an object down at
+/// `a.b.c.d` can be ordered only at `a` and `c`, which would result in an annotation
+/// `/d:0:n/b:3:n` instead of the full `d/c/b/a`. Also, as jsonnet executes from within, the
+/// annotation is inverted given that the `sdk.inOrder` will be first called at `c` and not `a`
 #[derive(Debug, Default)]
 pub struct Order(Vec<Track>);
 
@@ -192,6 +215,13 @@ impl TryFrom<&Value> for Order {
 	}
 }
 
+/// What's the path taken to reach an object?
+///
+/// That's the main purpose of this struct. We use it to build "breadcrumbs" from the root until we
+/// find an object. It will always return a new instance instead of changing the existing to build
+/// the path more easily without worrying about a child path impacting on sibling paths. The only
+/// method requiring mutability is the `kinded`, which "closes" our tracking because we've found an
+/// object.
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tracking(Vec<Track>);
 
@@ -210,6 +240,13 @@ impl Tracking {
 		Tracking(new)
 	}
 
+	/// Combines the traversal tracking with the order from the annotation by matching the depths and
+	/// fields while swapping the backwards depth from the annotation by the correct one from the
+	/// object traversal.
+	///
+	/// Manually tracked paths should always be bigger or have the same size as the annotation.
+	/// There's no way to put more levels in the annotation because we're traversing the same object
+	/// but at two different moments.
 	pub fn ordered(self, order: Order) -> Self {
 		let mut ordered: Vec<Track> = vec![];
 		let length = self.0.len();
@@ -254,6 +291,8 @@ impl Tracking {
 		Self(ordered)
 	}
 
+	/// Puts the specified kind at the end of your tracked path. You should use this before wrapping
+	/// up the tracking for a specific branch that ended on a leaf corresponding to a K8s object
 	pub fn kinded(mut self, kind: Kind) -> Tracking {
 		let len = self.0.len().saturating_sub(1);
 		if let Some(t) = self.0.get_mut(len) {

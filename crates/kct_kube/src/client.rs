@@ -1,8 +1,7 @@
-use crate::Manifest;
+use crate::{Manifest, Tracked};
 
 pub use crate::error::Root as Error;
 
-use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -29,15 +28,19 @@ impl Client {
 	}
 
 	pub async fn apply(&mut self, manifests: Vec<Manifest>) -> Result<()> {
-		let (dynamics, crds) = separate_crds(manifests)?;
+		let plan = Plan::try_new(manifests)?;
 
 		let ssapply = PatchParams::apply("kct-crds").force();
-		let crds = crds.into_iter().map(|crd| self.apply_crd(crd, &ssapply));
+		let crds = plan
+			.crds
+			.into_iter()
+			.map(|crd| self.apply_crd(crd, &ssapply));
 		let _ = futures::future::try_join_all(crds).await?;
 
 		self.refresh().await?;
 		let ssapply = PatchParams::apply("kct-dyns").force();
-		let dynamics = dynamics
+		let dynamics = plan
+			.dynamics
 			.into_iter()
 			.map(|obj| self.apply_dynamic(obj, &ssapply));
 		let _ = futures::future::try_join_all(dynamics).await?;
@@ -45,9 +48,9 @@ impl Client {
 		Ok(())
 	}
 
-	async fn apply_crd(&self, (path, crd): (PathBuf, CRD), params: &PatchParams) -> Result<()> {
-		let name = crd.name_any();
-		let patch = Patch::Apply(&crd);
+	async fn apply_crd(&self, tracked: Tracked<CRD>, params: &PatchParams) -> Result<()> {
+		let name = tracked.value().name_any();
+		let patch = Patch::Apply(tracked.value());
 		let cond = conditions::is_crd_established();
 
 		let api: Api<CRD> = Api::all(self.client.clone());
@@ -65,22 +68,18 @@ impl Client {
 
 		let _ = futures::future::try_join(apply, wait).await?;
 
-		println!("{} created", path.display());
+		println!("{} created", tracked.path().display());
 
 		Ok(())
 	}
 
-	async fn apply_dynamic(
-		&self,
-		(path, obj): (PathBuf, Dynamic),
-		params: &PatchParams,
-	) -> Result<()> {
-		let name = obj.name_any();
-		let api: Api<Dynamic> = self.dynamic_api(&obj)?;
-		let data = serde_json::to_value(&obj)?;
+	async fn apply_dynamic(&self, tracked: Tracked<Dynamic>, params: &PatchParams) -> Result<()> {
+		let name = tracked.value().name_any();
+		let api: Api<Dynamic> = self.dynamic_api(tracked.value())?;
+		let data = serde_json::to_value(tracked.value())?;
 		let _ = api.patch(&name, params, &Patch::Apply(data)).await?;
 
-		println!("{} created", path.display());
+		println!("{} created", tracked.path().display());
 
 		Ok(())
 	}
@@ -88,10 +87,13 @@ impl Client {
 	pub async fn delete(&mut self, mut manifests: Vec<Manifest>) -> Result<()> {
 		manifests.reverse();
 
-		let (dynamics, crds) = separate_crds(manifests)?;
+		let plan = Plan::try_new(manifests)?;
 
-		let dynamics = dynamics.into_iter().map(|obj| self.delete_dynamic(obj));
-		let crds = crds.into_iter().map(|obj| self.delete_crd(obj));
+		let dynamics = plan
+			.dynamics
+			.into_iter()
+			.map(|obj| self.delete_dynamic(obj));
+		let crds = plan.crds.into_iter().map(|obj| self.delete_crd(obj));
 
 		let _ = futures::future::try_join_all(dynamics).await?;
 		let _ = futures::future::try_join_all(crds).await?;
@@ -99,22 +101,22 @@ impl Client {
 		Ok(())
 	}
 
-	async fn delete_crd(&self, (path, obj): (PathBuf, CRD)) -> Result<()> {
-		let name = obj.name_any();
+	async fn delete_crd(&self, crd: Tracked<CRD>) -> Result<()> {
+		let name = crd.value().name_any();
 		let api: Api<CRD> = Api::all(self.client.clone());
 		let _ = api.delete(&name, &Default::default()).await?;
 
-		println!("{} removed", path.display());
+		println!("{} removed", crd.path().display());
 
 		Ok(())
 	}
 
-	async fn delete_dynamic(&self, (path, obj): (PathBuf, Dynamic)) -> Result<()> {
-		let name = obj.name_any();
-		let api: Api<Dynamic> = self.dynamic_api(&obj)?;
+	async fn delete_dynamic(&self, dynamic: Tracked<Dynamic>) -> Result<()> {
+		let name = dynamic.value().name_any();
+		let api: Api<Dynamic> = self.dynamic_api(dynamic.value())?;
 		let _ = api.delete(&name, &Default::default()).await?;
 
-		println!("{} removed", path.display());
+		println!("{} removed", dynamic.path().display());
 
 		Ok(())
 	}
@@ -153,25 +155,30 @@ impl Client {
 	}
 }
 
-fn separate_crds(
-	manifests: Vec<Manifest>,
-) -> Result<(Vec<(PathBuf, Dynamic)>, Vec<(PathBuf, CRD)>)> {
-	let mut crds = vec![];
-	let mut dynamics = vec![];
-
-	for Manifest(path, doc) in manifests {
-		let obj: Dynamic = serde_json::from_value(doc)?;
-
-		match try_parse(obj) {
-			Either::Right(crd) => crds.push((path, crd)),
-			Either::Left(obj) => dynamics.push((path, obj)),
-		}
-	}
-
-	Ok((dynamics, crds))
+struct Plan {
+	crds: Vec<Tracked<CRD>>,
+	dynamics: Vec<Tracked<Dynamic>>,
 }
 
-fn try_parse(obj: Dynamic) -> Either<Dynamic, CRD> {
+impl Plan {
+	fn try_new(manifests: Vec<Manifest>) -> Result<Self> {
+		let mut crds = vec![];
+		let mut dynamics = vec![];
+
+		for Tracked(path, doc) in manifests {
+			let obj: Dynamic = serde_json::from_value(doc)?;
+
+			match try_crd(obj) {
+				Either::Right(crd) => crds.push((path, crd).into()),
+				Either::Left(obj) => dynamics.push((path, obj).into()),
+			}
+		}
+
+		Ok(Plan { crds, dynamics })
+	}
+}
+
+fn try_crd(obj: Dynamic) -> Either<Dynamic, CRD> {
 	match obj.clone().try_parse() {
 		Ok(crd) => Either::Right(crd),
 		Err(_) => Either::Left(obj),

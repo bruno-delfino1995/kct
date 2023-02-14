@@ -1,6 +1,13 @@
 local annotation = 'kct.io/order';
 
-local recursive(when, what, who, depth = 0) = if when(who) then what(depth, who) else std.mapWithKey(function(k, v) recursive(when, what, v, depth + 1), who);
+local recursive(when, what, who, depth = 0) =
+	if when(who) then
+		what(depth, who)
+	else
+		std.mapWithKey(
+			function(k, v) recursive(when, what, v, depth + 1),
+			who
+		);
 
 local isObject(who) = std.objectHas(who, 'kind') && std.objectHas(who, 'apiVersion');
 
