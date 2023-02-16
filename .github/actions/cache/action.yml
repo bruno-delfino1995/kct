@@ -4,30 +4,30 @@ inputs:
   rustc:
     description: Rustc version hash
     required: true
+  compiled:
+    description: What should we do for the compilation cache? read, write, skip
+    default: skip
+  toolchain:
+    description: What should we do for the toolchain cache? read, read-write, skip
+    default: skip
   variant:
     description: Variant to distinguish different caches
-    default: 'default'
-  compiled:
-    description: Should it restore, save, or skip compiled files?
-    default: 'restore'
-  index:
-    description: Should it enable the index cache?
-    default: 'true'
+    default: default
 
 outputs:
   compiled:
     description: Cache hit for compiled
-    value: ${{ steps.compiled.outputs.cache-hit }}
-  index:
-    description: Cache hit for index
-    value: ${{ steps.index.outputs.cache-hit }}
+    value: ${{ steps.compiled-r.outputs.cache-hit }}
+  toolchain:
+    description: Cache hit for toolchain
+    value: ${{ steps.toolchain-rw.outputs.cache-hit || steps.toolchain-r.outputs.cache-hit }}
 
 runs:
   using: composite
   steps:
-    - name: Cache dependencies registry
-      id: index
-      if: inputs.index == 'true' && inputs.compiled != 'save'
+    - name: Configure toolchain cache
+      id: toolchain-rw
+      if: inputs.toolchain == 'read-write'
       uses: actions/cache@v3
       with:
         path: |
@@ -39,9 +39,23 @@ runs:
         restore-keys: |
           ${{ runner.os }}-${{ inputs.rustc }}-cargo
 
-    - name: Restore compiled dependencies
-      id: compiled
-      if: inputs.compiled == 'restore'
+    - name: Restore toolchain cache
+      id: toolchain-r
+      if: inputs.toolchain == 'read'
+      uses: actions/cache/restore@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-${{ inputs.rustc }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ inputs.rustc }}-cargo
+
+    - name: Restore compilation cache
+      id: compiled-r
+      if: inputs.compiled == 'read'
       uses: actions/cache/restore@v3
       with:
         path: target/
@@ -50,15 +64,15 @@ runs:
           ${{ runner.os }}-${{ inputs.rustc }}-cargo-${{ inputs.variant }}
           ${{ runner.os }}-${{ inputs.rustc }}-cargo-default
 
-    - name: Configure cleanup before cache save
-      if: inputs.compiled == 'save'
+    - name: Cleanup of compilation outputs
+      if: inputs.compiled == 'write'
       shell: bash
       run: |
         find target \( -name 'coverage' -o -name 'incremental' \) -prune -type d -exec rm -rf {} \;
         find target \( -name 'libkct*' -o -name 'kct*' \) -prune -exec rm -rf {} \;
 
-    - name: Save compiled dependencies
-      if: inputs.compiled == 'save'
+    - name: Write compilation cache
+      if: inputs.compiled == 'write'
       uses: actions/cache/save@v3
       with:
         path: target/

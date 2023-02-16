@@ -1,9 +1,9 @@
 on: [workflow_call]
 
-name: Workflows baseline
+name: Warm-up caches
 
 jobs:
-  setup:
+  toolchain:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,6 +24,41 @@ jobs:
         uses: ./.github/actions/cache
         with:
           rustc: ${{ steps.toolchain.outputs.rustc_hash }}
+          toolchain: read-write
+
+      - name: Install coverage tool
+        if: steps.cache.outputs.toolchain != 'true'
+        shell: bash
+        run: which grcov || cargo install grcov
+
+      - name: Install cross compiler
+        if: steps.cache.outputs.toolchain != 'true'
+        shell: bash
+        run: which cross || cargo install cross
+
+  project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Install toolchain
+        id: toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy, llvm-tools
+
+      - name: Configure cache
+        id: cache
+        uses: ./.github/actions/cache
+        with:
+          rustc: ${{ steps.toolchain.outputs.rustc_hash }}
+          toolchain: read
+          compiled: read
 
       - name: Compile project
         if: steps.cache.outputs.compiled != 'true'
@@ -31,19 +66,9 @@ jobs:
         with:
           command: build
 
-      - name: Install coverage tool
-        if: steps.cache.outputs.index != 'true'
-        shell: bash
-        run: which grcov || cargo install grcov
-
-      - name: Install cross compiler
-        if: steps.cache.outputs.index != 'true'
-        shell: bash
-        run: which cross || cargo install cross
-
       - name: Save cache
         if: steps.cache.outputs.compiled != 'true'
         uses: ./.github/actions/cache
         with:
           rustc: ${{ steps.toolchain.outputs.rustc_hash }}
-          compiled: save
+          compiled: write
