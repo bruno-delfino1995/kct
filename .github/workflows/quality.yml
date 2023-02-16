@@ -1,4 +1,4 @@
-on: [push]
+on: [push, workflow_call]
 
 name: Code Quality
 
@@ -7,11 +7,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  base:
-    uses: ./.github/workflows/base.yml
+  caches:
+    uses: ./.github/workflows/caches.yml
 
   tests:
-    needs: [base]
+    needs: [caches]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,7 +33,8 @@ jobs:
         with:
           rustc: ${{ steps.toolchain.outputs.rustc_hash }}
           variant: coverage
-          compiled: restore
+          compiled: read
+          toolchain: read
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -46,7 +47,7 @@ jobs:
           args: --tests --workspace
 
       - name: Install coverage tool
-        if: steps.cache.outputs.index != 'true'
+        if: steps.cache.outputs.toolchain != 'true'
         shell: bash
         run: which grcov || cargo install grcov
 
@@ -68,10 +69,10 @@ jobs:
         with:
           rustc: ${{ steps.toolchain.outputs.rustc_hash }}
           variant: coverage
-          compiled: save
+          compiled: write
 
   style:
-    needs: [base]
+    needs: [caches]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -91,6 +92,7 @@ jobs:
         uses: ./.github/actions/cache
         with:
           rustc: ${{ steps.toolchain.outputs.rustc_hash }}
+          toolchain: read
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
