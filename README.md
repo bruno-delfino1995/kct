@@ -5,6 +5,7 @@
 [![version](https://img.shields.io/github/v/release/bruno-delfino1995/kct?label=version)](https://github.com/bruno-delfino1995/kct/releases/latest)
 [![coverage](https://codecov.io/gh/bruno-delfino1995/kct/branch/main/graph/badge.svg?token=VAXMGX6OKU)](https://codecov.io/gh/bruno-delfino1995/kct)
 [![dependency status](https://deps.rs/repo/github/bruno-delfino1995/kct/status.svg)](https://deps.rs/repo/github/bruno-delfino1995/kct)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbruno-delfino1995%2Fkct.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbruno-delfino1995%2Fkct?ref=badge_shield)
 
 KCT is a tool for taming the Kubernetes configuration beast by using Jsonnet while borrowing approaches and concepts from early contestants such as Tanka and Helm.
 
@@ -41,3 +42,6 @@ Any contribution is welcome, be either an issue or a PR. I'm very new to Rust so
 ## LICENSE
 
 MIT © Bruno Delfino
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbruno-delfino1995%2Fkct.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbruno-delfino1995%2Fkct?ref=badge_large)
