@@ -20,7 +20,7 @@ repository = "https://github.com/bruno-delfino1995/kct"
 [workspace.dependencies]
 anyhow = "1.0.69"
 assert_matches = "1.5.0"
-async-trait = "0.1.64"
+async-trait = "0.1.66"
 either = "1.8.1"
 futures = "0.3.26"
 kct_cli = { path = "./crates/kct_cli", version = "=0.7.0"}
