@@ -206,7 +206,6 @@ impl TryFrom<&Value> for Order {
 
 		let tracking = annotation
 			.split('/')
-			.into_iter()
 			.filter(|s| !s.is_empty())
 			.map(Track::try_from)
 			.collect::<Result<Vec<Track>, _>>()?;
