@@ -106,15 +106,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
-name = "bincode"
-version = "1.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -655,6 +646,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "heck"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -835,7 +835,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -877,84 +877,108 @@ checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
 
 [[package]]
 name = "jrsonnet-evaluator"
-version = "0.4.2"
+version = "0.5.0-pre6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fee60406dac44a01b37e120b43adb062047251e195db15392b825f6bdc948712"
+checksum = "4d100ce6f1dafc1767b37dc10064eb2a5c704e9993016f193fb5596cc52d2106"
 dependencies = [
  "annotate-snippets",
- "base64 0.13.1",
- "bincode",
- "jrsonnet-gc",
+ "hashbrown 0.13.2",
+ "jrsonnet-gcmodule",
  "jrsonnet-interner",
+ "jrsonnet-macros",
  "jrsonnet-parser",
- "jrsonnet-stdlib",
  "jrsonnet-types",
- "md5",
  "pathdiff",
  "rustc-hash",
  "serde",
- "serde_json",
+ "static_assertions",
+ "strsim",
  "thiserror",
 ]
 
 [[package]]
-name = "jrsonnet-gc"
-version = "0.4.2"
+name = "jrsonnet-gcmodule"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68da8bc2f00117b1373bb8877af03b1d391e4c4800e6585d7279e5b99c919dde"
+checksum = "35243aa6a013032e9469f3798c54e2ca7af44973b1eafdc924cb6ca351a71f72"
 dependencies = [
- "jrsonnet-gc-derive",
+ "jrsonnet-gcmodule-derive",
+ "parking_lot",
 ]
 
 [[package]]
-name = "jrsonnet-gc-derive"
-version = "0.4.1"
+name = "jrsonnet-gcmodule-derive"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adcba9c387b64b054f06cc4d724905296e21edeeb7506847f3299117a2d92d12"
+checksum = "96206bf4ae74d5257bbbd23113bfe67b09e8973de3843b728c3ce289dee86eda"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "synstructure",
 ]
 
 [[package]]
 name = "jrsonnet-interner"
-version = "0.4.2"
+version = "0.5.0-pre6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5ff75843e778244f3476800e6f492950a6ecee1d9308019764983d311620bf9"
+checksum = "41669eb040774d33e9818c97eb571a5bccae3b662249e084b30c51b4f4e759c1"
 dependencies = [
- "jrsonnet-gc",
+ "hashbrown 0.13.2",
+ "jrsonnet-gcmodule",
  "rustc-hash",
- "serde",
+ "structdump",
+]
+
+[[package]]
+name = "jrsonnet-macros"
+version = "0.5.0-pre6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b15198025d4920320b9f8259844a97632d103714a9f341ac2c3a508be72e8d8f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
 name = "jrsonnet-parser"
-version = "0.4.2"
+version = "0.5.0-pre6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daaad69b21c1dba904f3bb1640e02f8f60c5cd4eae8c9bc035b38a83324cdf45"
+checksum = "586ffe2b443260a3d9be86189fd42f3ab7225394d99da47cfacb5df14427c7ef"
 dependencies = [
- "jrsonnet-gc",
+ "jrsonnet-gcmodule",
  "jrsonnet-interner",
  "peg",
- "serde",
- "unescape",
+ "static_assertions",
+ "structdump",
 ]
 
 [[package]]
 name = "jrsonnet-stdlib"
-version = "0.4.2"
+version = "0.5.0-pre6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "840295ba3a8d65bf71e57a57acbef4c77d11c543739cfded27f91feef239f80e"
+checksum = "27956328cc81a7fdb807a29e6081757361286cb41ac4495e0f55ea0a46d18120"
+dependencies = [
+ "base64 0.13.1",
+ "jrsonnet-evaluator",
+ "jrsonnet-gcmodule",
+ "jrsonnet-macros",
+ "jrsonnet-parser",
+ "md5",
+ "serde",
+ "serde_json",
+ "serde_yaml_with_quirks",
+ "sha2",
+ "structdump",
+]
 
 [[package]]
 name = "jrsonnet-types"
-version = "0.4.2"
+version = "0.5.0-pre6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "909b38de99711ef357a514af1ed112e6cf411ab8b204cc92507b6e219e65fe5c"
+checksum = "175503f2c40f9827780d5a69638ccff50e11efaf5dfd555a96968f6d057d9190"
 dependencies = [
- "jrsonnet-gc",
+ "jrsonnet-gcmodule",
  "peg",
 ]
 
@@ -1061,6 +1085,7 @@ name = "kct_compiler"
 version = "0.7.0"
 dependencies = [
  "anyhow",
+ "jrsonnet-gcmodule",
  "kct_jsonnet",
  "serde_json",
  "thiserror",
@@ -1081,9 +1106,10 @@ version = "0.7.0"
 dependencies = [
  "anyhow",
  "jrsonnet-evaluator",
- "jrsonnet-gc",
+ "jrsonnet-gcmodule",
  "jrsonnet-interner",
  "jrsonnet-parser",
+ "jrsonnet-stdlib",
  "serde_json",
  "thiserror",
 ]
@@ -1118,6 +1144,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "globwalk",
+ "jrsonnet-gcmodule",
  "kct_compiler",
  "kct_helper",
  "kct_testing",
@@ -1499,9 +1526,9 @@ checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
 
 [[package]]
 name = "peg"
-version = "0.7.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07c0b841ea54f523f7aa556956fbd293bcbe06f2e67d2eb732b7278aaf1d166a"
+checksum = "a07f2cafdc3babeebc087e499118343442b742cc7c31b4d054682cc598508554"
 dependencies = [
  "peg-macros",
  "peg-runtime",
@@ -1509,9 +1536,9 @@ dependencies = [
 
 [[package]]
 name = "peg-macros"
-version = "0.7.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5aa52829b8decbef693af90202711348ab001456803ba2a98eb4ec8fb70844c"
+checksum = "4a90084dc05cf0428428e3d12399f39faad19b0909f64fb9170c9fdd6d9cd49b"
 dependencies = [
  "peg-runtime",
  "proc-macro2",
@@ -1520,9 +1547,9 @@ dependencies = [
 
 [[package]]
 name = "peg-runtime"
-version = "0.7.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c719dcf55f09a3a7e764c6649ab594c18a177e3599c467983cdf644bfc0a4088"
+checksum = "9fa00462b37ead6d11a82c9d568b26682d78e0477dc02d1966c013af80969739"
 
 [[package]]
 name = "pem"
@@ -2032,6 +2059,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml_with_quirks"
+version = "0.8.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47c5983eba86eae2d0058c35fb1065ccffb23af7f8965871069269088098321a"
+dependencies = [
+ "indexmap",
+ "ryu",
+ "serde",
+ "yaml-rust",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2101,10 +2140,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "structdump"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0570327507bf281d8a6e6b0d4c082b12cb6bcee27efce755aa5efacd44076c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "structdump-derive",
+]
+
+[[package]]
+name = "structdump-derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29cc0b59cfa11f1bceda09a9a7e37e6a6c3138575fd24ade8aa9af6d09aedf28"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "syn"
@@ -2115,18 +2182,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "synstructure"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f36bdaa60a83aca3921b5259d5400cbf5e90fc51931376a9bd4a0eb79aa7210f"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "unicode-xid",
 ]
 
 [[package]]
@@ -2480,12 +2535,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "unescape"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccb97dac3243214f8d8507998906ca3e2e0b900bf9bf4870477f125b82e68f6e"
-
-[[package]]
 name = "unic-char-property"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2561,12 +2610,6 @@ name = "unicode-width"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
-
-[[package]]
-name = "unicode-xid"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 
 [[package]]
 name = "uritemplate-next"

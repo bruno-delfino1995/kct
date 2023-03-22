@@ -11,10 +11,11 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
-jrsonnet-evaluator = "0.4.2"
-jrsonnet-gc = "0.4.2"
-jrsonnet-interner = "0.4.2"
-jrsonnet-parser = "0.4.2"
+jrsonnet-evaluator = "0.5.0-pre6"
+jrsonnet-gcmodule = "0.3.3"
+jrsonnet-interner = "0.5.0-pre6"
+jrsonnet-parser = "0.5.0-pre6"
+jrsonnet-stdlib = "0.5.0-pre6"
 
 anyhow.workspace = true
 serde_json.workspace = true

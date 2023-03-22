@@ -3,13 +3,15 @@ use crate::{error, Error, Release};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use kct_jsonnet::Trace;
+
 struct Internal {
 	root: PathBuf,
 	release: Option<Release>,
 	vendor: PathBuf,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Trace)]
 pub struct Context(Arc<Internal>);
 
 impl Context {

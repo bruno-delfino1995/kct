@@ -51,8 +51,10 @@ impl Prop {
 		Prop(name, Property::Primitive(value))
 	}
 
-	pub fn callable(name: Name, func: Function) -> Self {
-		Prop(name, Property::Callable(name.as_str().to_string(), func))
+	pub fn callable(name: Name, params: Vec<String>, handler: impl Callback) -> Self {
+		let func = Function::new(name.as_str().to_string(), params, handler);
+
+		Prop(name, Property::Callable(func))
 	}
 
 	pub fn take(self) -> (Name, Property) {

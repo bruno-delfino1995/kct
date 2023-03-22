@@ -12,6 +12,7 @@ doctest = false
 
 [dependencies]
 anyhow.workspace = true
+jrsonnet-gcmodule.workspace = true
 kct_jsonnet.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

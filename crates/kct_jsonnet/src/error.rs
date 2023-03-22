@@ -1,6 +1,6 @@
 use std::fmt;
 
-use jrsonnet_evaluator::error::{LocError, StackTrace, StackTraceElement};
+use jrsonnet_evaluator::error::{Error as LocError, StackTrace, StackTraceElement};
 use serde_json::Error as JsonError;
 use thiserror::Error;
 
@@ -40,7 +40,7 @@ impl Trace {
 		let desc = &el.desc;
 		let location = {
 			let loc = el.location.as_ref().unwrap().clone();
-			let path_with_resolver = loc.0.to_path_buf();
+			let path_with_resolver = loc.0.source_path().path().unwrap();
 			let begin = loc.1;
 			let end = loc.2;
 

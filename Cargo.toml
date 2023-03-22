@@ -23,6 +23,7 @@ assert_matches = "1.5.0"
 async-trait = "0.1.66"
 either = "1.8.1"
 futures = "0.3.27"
+jrsonnet-gcmodule = "0.3.3"
 kct_cli = { path = "./crates/kct_cli", version = "=0.7.0"}
 kct_compiler = { path = "./crates/kct_compiler", version = "=0.7.0"}
 kct_helper = { path = "./crates/kct_helper", version = "=0.7.0"}

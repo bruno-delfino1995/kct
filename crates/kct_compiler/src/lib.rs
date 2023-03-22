@@ -19,6 +19,8 @@ use anyhow::Result;
 use kct_jsonnet::Executable;
 use serde_json::Value;
 
+pub use kct_jsonnet::{Trace, Track};
+
 #[derive(Clone, Debug)]
 pub struct Release {
 	pub name: String,

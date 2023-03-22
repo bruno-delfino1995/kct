@@ -1,19 +1,22 @@
+use crate::serde::W;
+
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
-use std::path::Path;
-use std::rc::Rc;
 
-use jrsonnet_evaluator::error::{Error as JrError, LocError};
-use jrsonnet_evaluator::native::{NativeCallback, NativeCallbackHandler};
-use jrsonnet_evaluator::{FuncVal, Val};
-use jrsonnet_gc::{unsafe_empty_trace, Finalize, Gc, Trace};
-use jrsonnet_parser::{Param, ParamsDesc};
+use jrsonnet_evaluator::error::Error;
+use jrsonnet_evaluator::error::ErrorKind;
+use jrsonnet_evaluator::function::builtin::{Builtin, BuiltinParam};
+use jrsonnet_evaluator::function::parse::parse_builtin_call;
+use jrsonnet_evaluator::function::{ArgsLike, CallLocation, FuncVal};
+use jrsonnet_evaluator::gc::TraceBox;
+use jrsonnet_evaluator::{Context, Val};
+use jrsonnet_gcmodule::{Cc, Trace};
 use serde_json::Value;
 
 pub enum Property {
 	Primitive(Value),
-	Callable(String, Function),
+	Callable(Function),
 }
 
 impl Property {
@@ -29,63 +32,101 @@ impl fmt::Debug for Property {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Property::Primitive(val) => write!(f, "{val:?}"),
-			Property::Callable(name, func) => write!(f, "{}({})", name, func.params.join(", ")),
+			Property::Callable(func) => write!(f, "{}({})", func.name, func.params().join(", ")),
 		}
 	}
 }
 
+#[derive(Trace)]
 pub struct Function {
-	pub params: Vec<String>,
-	pub handler: Box<dyn Callback>,
+	name: String,
+	params: Vec<BuiltinParam>,
+	handler: TraceBox<dyn Callback>,
 }
 
-pub trait Callback: Send {
-	fn call(&self, params: HashMap<String, Value>) -> Result<Value, String>;
+impl Function {
+	pub fn new(name: String, params: Vec<String>, handler: impl Callback) -> Self {
+		let params = params
+			.into_iter()
+			.map(|p| -> BuiltinParam {
+				BuiltinParam {
+					name: Some(p.into()),
+					has_default: false,
+				}
+			})
+			.collect();
+
+		Self {
+			name,
+			params,
+			handler: TraceBox(Box::new(handler)),
+		}
+	}
+
+	pub fn params(&self) -> Vec<String> {
+		self.params
+			.iter()
+			.map(|p| p.name.as_ref().unwrap().to_string())
+			.collect()
+	}
 }
 
-impl Finalize for Function {}
-unsafe impl Trace for Function {
-	unsafe_empty_trace!();
+pub trait Callback: Send + Trace {
+	fn call(&self, params: HashMap<String, Value>) -> std::result::Result<Value, String>;
 }
 
-impl NativeCallbackHandler for Function {
+impl Builtin for Function {
+	fn name(&self) -> &str {
+		&self.name
+	}
+
+	fn params(&self) -> &[BuiltinParam] {
+		&self.params
+	}
+
 	fn call(
 		&self,
-		_from: Option<Rc<Path>>,
-		args: &[Val],
-	) -> jrsonnet_evaluator::error::Result<Val> {
-		let names = self.params.clone().into_iter();
-		let values = args.iter().map(|v| {
-			Value::try_from(v).expect("Extension functions should only receive valid JSON")
+		ctx: Context,
+		_: CallLocation<'_>,
+		args: &dyn ArgsLike,
+	) -> jrsonnet_evaluator::Result<Val> {
+		let args = parse_builtin_call(ctx, &self.params, args, true)?;
+		let args = args
+			.into_iter()
+			.map(|a| a.expect("natives have no default params"))
+			.map(|a| a.evaluate())
+			.collect::<jrsonnet_evaluator::Result<Vec<Val>>>()?;
+
+		let names = self.params().into_iter();
+		let values = args.iter().map(|val| {
+			W(val)
+				.try_into()
+				.expect("Extension functions should only receive valid JSON")
 		});
 
 		let params = names.zip(values).collect();
 
 		self.handler
 			.call(params)
-			.map(|v| Val::from(&v))
-			.map_err(|err| LocError::new(JrError::RuntimeError(err.into())))
+			.map(|value| {
+				let wrapped: W<Val> = (&value).into();
+
+				wrapped.0
+			})
+			.map_err(|err| Error::new(ErrorKind::RuntimeError(err.into())))
 	}
 }
 
 impl From<Property> for Val {
 	fn from(original: Property) -> Self {
 		match original {
-			Property::Primitive(value) => Val::from(&value),
-			Property::Callable(name, function) => {
-				let params = function.params.clone();
+			Property::Primitive(value) => {
+				let wrapped: W<Val> = (&value).into();
 
-				let params_desc = {
-					let names: Vec<Param> =
-						params.into_iter().map(|n| Param(n.into(), None)).collect();
-
-					ParamsDesc(Rc::new(names))
-				};
-
-				let callback = NativeCallback::new(params_desc, Box::new(function));
-
-				let name = name.as_str();
-				let ext: Gc<FuncVal> = Gc::new(FuncVal::NativeExt(name.into(), Gc::new(callback)));
+				wrapped.0
+			}
+			Property::Callable(function) => {
+				let ext = FuncVal::Builtin(Cc::new(TraceBox(Box::new(function))));
 
 				Val::Func(ext)
 			}

@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use globwalk::{DirEntry, GlobWalkerBuilder};
-use kct_compiler::property::{Callback, Function, Generator, Name, Prop};
-use kct_compiler::Runtime;
+use kct_compiler::property::{Callback, Generator, Name, Prop};
+use kct_compiler::{Runtime, Trace};
 use serde_json::{Map, Value};
 use tera::{Context, Tera};
 
@@ -12,6 +12,7 @@ const TEMPLATES_FOLDER: &str = "files";
 
 pub struct Files;
 
+#[derive(Trace)]
 struct Handler {
 	root: PathBuf,
 }
@@ -46,12 +47,7 @@ impl Generator for Files {
 
 		let params = vec![String::from("name"), String::from("input")];
 		let handler = Handler { root };
-		let function = Function {
-			params,
-			handler: Box::new(handler),
-		};
-
-		Prop::callable(Name::Files, function)
+		Prop::callable(Name::Files, params, handler)
 	}
 
 	fn name(&self) -> Name {

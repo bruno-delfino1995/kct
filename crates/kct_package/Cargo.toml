@@ -16,6 +16,7 @@ semver = "1.0.17"
 url = "2.1.1"
 
 anyhow.workspace = true
+jrsonnet-gcmodule.workspace = true
 kct_compiler.workspace = true
 kct_helper.workspace = true
 serde_json.workspace = true

@@ -1,10 +1,10 @@
 mod error;
-mod resolver;
 
 pub mod property;
+pub(crate) mod serde;
 
 use crate::property::Property;
-use crate::resolver::*;
+use crate::serde::W;
 
 pub use crate::error::Error;
 
@@ -14,9 +14,13 @@ use std::sync::mpsc;
 use std::thread;
 
 use anyhow::Result;
-use jrsonnet_evaluator::trace::{ExplainingFormat, PathResolver};
-use jrsonnet_evaluator::{EvaluationState, ManifestFormat};
+use jrsonnet_evaluator::trace::PathResolver;
+use jrsonnet_evaluator::{FileImportResolver, State};
+use jrsonnet_stdlib::ContextInitializer;
 use serde_json::Value;
+
+pub use jrsonnet_evaluator::gc::TraceBox as Track;
+pub use jrsonnet_gcmodule::Trace;
 
 const VARS_PREFIX: &str = "kct.io";
 
@@ -39,41 +43,26 @@ impl Executable {
 	}
 
 	fn render(self) -> Result<Value, Error> {
+		let main = self.main.clone();
 		let state = self.create_state();
-		for (name, value) in self.props {
-			let name = format!("{VARS_PREFIX}/{}", name.as_str());
-			state.add_ext_var(name.into(), value.into());
-		}
-
-		let parsed = state.evaluate_file_raw(&self.main).map_err(Error::from)?;
-
-		let rendered = state.manifest(parsed).map_err(Error::from)?.to_string();
-
-		let json = serde_json::from_str(&rendered)?;
+		let val = state.import(main)?;
+		let wrapped = W(&val);
+		let json = wrapped.try_into()?;
 
 		Ok(json)
 	}
 
-	fn create_state(&self) -> EvaluationState {
-		let state = EvaluationState::default();
-		let resolver = PathResolver::Absolute;
-		state.set_trace_format(Box::new(ExplainingFormat { resolver }));
+	fn create_state(self) -> State {
+		let state = State::default();
 
-		state.with_stdlib();
+		let ctx = ContextInitializer::new(state.clone(), PathResolver::new_cwd_fallback());
+		for (name, value) in self.props {
+			let name = format!("{VARS_PREFIX}/{}", name.as_str());
+			ctx.add_ext_var(name.into(), value.into());
+		}
 
-		let relative_resolver = Box::new(RelativeImportResolver);
-
-		let lib_resolver = Box::new(LibImportResolver {
-			library_paths: vec![self.lib.clone(), self.vendor.clone()],
-		});
-
-		let resolver = AggregatedImportResolver::default()
-			.push(relative_resolver)
-			.push(lib_resolver);
-
-		state.set_import_resolver(Box::new(resolver));
-
-		state.set_manifest_format(ManifestFormat::Json(0));
+		state.set_context_initializer(ctx);
+		state.set_import_resolver(FileImportResolver::new(vec![self.lib, self.vendor]));
 
 		state
 	}

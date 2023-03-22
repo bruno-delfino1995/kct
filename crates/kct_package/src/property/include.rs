@@ -3,12 +3,13 @@ use crate::Package;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-use kct_compiler::property::{Callback, Function, Generator, Name, Prop};
-use kct_compiler::{Compiler, Context, Input, Runtime};
+use kct_compiler::property::{Callback, Generator, Name, Prop};
+use kct_compiler::{Compiler, Context, Input, Runtime, Trace};
 use serde_json::Value;
 
 pub struct Include;
 
+#[derive(Trace)]
 struct Handler {
 	context: Context,
 }
@@ -42,12 +43,8 @@ impl Generator for Include {
 		let context = runtime.context().clone();
 		let params = vec![String::from("name"), String::from("input")];
 		let handler = Handler { context };
-		let function = Function {
-			params,
-			handler: Box::new(handler),
-		};
 
-		Prop::callable(Name::Include, function)
+		Prop::callable(Name::Include, params, handler)
 	}
 
 	fn name(&self) -> Name {
