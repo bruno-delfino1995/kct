@@ -22,7 +22,7 @@ anyhow = "1.0.70"
 assert_matches = "1.5.0"
 async-trait = "0.1.68"
 either = "1.8.1"
-futures = "0.3.27"
+futures = "0.3.28"
 jrsonnet-gcmodule = "0.3.3"
 kct_cli = { path = "./crates/kct_cli", version = "=0.7.0"}
 kct_compiler = { path = "./crates/kct_compiler", version = "=0.7.0"}
