@@ -937,9 +937,9 @@ checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
 
 [[package]]
 name = "jrsonnet-evaluator"
-version = "0.5.0-pre6"
+version = "0.5.0-pre7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d100ce6f1dafc1767b37dc10064eb2a5c704e9993016f193fb5596cc52d2106"
+checksum = "f638d61639b487f0661a803e98a9dec8650df9258b90e167acb23d363f4b8e35"
 dependencies = [
  "annotate-snippets",
  "hashbrown 0.13.2",
@@ -979,9 +979,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-interner"
-version = "0.5.0-pre6"
+version = "0.5.0-pre7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41669eb040774d33e9818c97eb571a5bccae3b662249e084b30c51b4f4e759c1"
+checksum = "a3f0189a6a3e3cfd5f3e6825de611489d5531deaf9e248c14a1dea4d7c1fd24b"
 dependencies = [
  "hashbrown 0.13.2",
  "jrsonnet-gcmodule",
@@ -991,9 +991,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-macros"
-version = "0.5.0-pre6"
+version = "0.5.0-pre7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15198025d4920320b9f8259844a97632d103714a9f341ac2c3a508be72e8d8f"
+checksum = "1bbe5f4ea64d543d0ba55e6141cedc6343f1ab4e878479e4dc09705692931fa8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1002,9 +1002,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-parser"
-version = "0.5.0-pre6"
+version = "0.5.0-pre7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "586ffe2b443260a3d9be86189fd42f3ab7225394d99da47cfacb5df14427c7ef"
+checksum = "89e73895d5dcfbeacf6830908ccbf117c7c1e511cf8fd56345208acb7a90b2c2"
 dependencies = [
  "jrsonnet-gcmodule",
  "jrsonnet-interner",
@@ -1034,9 +1034,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-types"
-version = "0.5.0-pre6"
+version = "0.5.0-pre7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "175503f2c40f9827780d5a69638ccff50e11efaf5dfd555a96968f6d057d9190"
+checksum = "e44cba9865de0ce2de553751fb48aa532f2d998e7b880ce03eaf9ce92a30abac"
 dependencies = [
  "jrsonnet-gcmodule",
  "peg",
