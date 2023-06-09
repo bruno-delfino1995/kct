@@ -13,7 +13,7 @@ doctest = false
 [dependencies]
 globwalk = "0.8.0"
 semver = "1.0.17"
-url = "2.1.1"
+url = "2.4.0"
 
 anyhow.workspace = true
 jrsonnet-gcmodule.workspace = true
