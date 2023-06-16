@@ -31,7 +31,7 @@ kct_jsonnet = { path = "./crates/kct_jsonnet", version = "=0.7.0"}
 kct_kube = { path = "./crates/kct_kube", version = "=0.7.0"}
 kct_package = { path = "./crates/kct_package", version = "=0.7.0"}
 kct_testing = { path = "./crates/kct_testing", version = "=0.7.0"}
-serde_json = "1.0.96"
+serde_json = "1.0.97"
 serde_yaml = "0.8"
 tera = "1.19.0"
 thiserror = "1.0.40"
