@@ -1004,9 +1004,9 @@ checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
 
 [[package]]
 name = "jrsonnet-evaluator"
-version = "0.5.0-pre6"
+version = "0.5.0-pre91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d100ce6f1dafc1767b37dc10064eb2a5c704e9993016f193fb5596cc52d2106"
+checksum = "835322d417e99d684d5139657010c5bb2d687fb8fb415bd4323d87219a0cdaf0"
 dependencies = [
  "annotate-snippets",
  "hashbrown 0.13.2",
@@ -1046,9 +1046,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-interner"
-version = "0.5.0-pre6"
+version = "0.5.0-pre91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41669eb040774d33e9818c97eb571a5bccae3b662249e084b30c51b4f4e759c1"
+checksum = "eaaf3e0ba36ff02145fbfa42344bced69e10cb1dc36d6d5b4992a6167d0de163"
 dependencies = [
  "hashbrown 0.13.2",
  "jrsonnet-gcmodule",
@@ -1058,9 +1058,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-macros"
-version = "0.5.0-pre6"
+version = "0.5.0-pre91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15198025d4920320b9f8259844a97632d103714a9f341ac2c3a508be72e8d8f"
+checksum = "c0f8edee35949bcba9034179c8107af75ac1cd7999b0d93dba8647e1ce3ee94d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1069,9 +1069,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-parser"
-version = "0.5.0-pre6"
+version = "0.5.0-pre91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "586ffe2b443260a3d9be86189fd42f3ab7225394d99da47cfacb5df14427c7ef"
+checksum = "39bc30c610dc2a1758cccc68e9273937e176271fabc0d772571c707d57600e3c"
 dependencies = [
  "jrsonnet-gcmodule",
  "jrsonnet-interner",
@@ -1101,9 +1101,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-types"
-version = "0.5.0-pre6"
+version = "0.5.0-pre91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "175503f2c40f9827780d5a69638ccff50e11efaf5dfd555a96968f6d057d9190"
+checksum = "f83a33eb7be3b4164fe54032b1e29e3755201cb29141cb33129074a3a8e1c812"
 dependencies = [
  "jrsonnet-gcmodule",
  "peg",
