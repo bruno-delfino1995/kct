@@ -1046,9 +1046,9 @@ dependencies = [
 
 [[package]]
 name = "jrsonnet-interner"
-version = "0.5.0-pre6"
+version = "0.5.0-pre91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41669eb040774d33e9818c97eb571a5bccae3b662249e084b30c51b4f4e759c1"
+checksum = "eaaf3e0ba36ff02145fbfa42344bced69e10cb1dc36d6d5b4992a6167d0de163"
 dependencies = [
  "hashbrown 0.13.2",
  "jrsonnet-gcmodule",
