@@ -12,7 +12,7 @@ doctest = false
 
 [dependencies]
 globwalk = "0.8.0"
-semver = "1.0.17"
+semver = "1.0.18"
 url = "2.4.0"
 
 anyhow.workspace = true
