@@ -34,7 +34,7 @@ kct_testing = { path = "./crates/kct_testing", version = "=0.7.0"}
 serde_json = "1.0.103"
 serde_yaml = "0.8"
 tera = "1.19.0"
-thiserror = "1.0.43"
+thiserror = "1.0.44"
 tokio = { version = "1.29.1", features = ["full"] }
 tracing = "0.1.37"
 valico = "3.6.1"
